@@ -159,14 +159,14 @@ function boot(){
 
   // ---------- sky, stars, mirror floor, light ----------
   const sky=new THREE.Mesh(new THREE.SphereGeometry(600,48,24), new THREE.ShaderMaterial({side:THREE.BackSide, depthWrite:false, fog:false,
-    uniforms:{uTime:U.uTime, uLift:{value:1}},
+    uniforms:{uTime:U.uTime, uLift:{value:1}, uHor:{value:new THREE.Vector3(0.045,0.016,0.07)}},
     vertexShader:'varying vec3 vD; void main(){ vD=normalize(position); gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
-    fragmentShader:`uniform float uTime,uLift; varying vec3 vD;
+    fragmentShader:`uniform float uTime,uLift; uniform vec3 uHor; varying vec3 vD;
       float h(vec3 p){ return fract(sin(dot(p,vec3(17.1,113.7,71.3)))*43758.5453); }
       float n3(vec3 p){ vec3 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
         return mix(mix(mix(h(i),h(i+vec3(1,0,0)),f.x),mix(h(i+vec3(0,1,0)),h(i+vec3(1,1,0)),f.x),f.y),mix(mix(h(i+vec3(0,0,1)),h(i+vec3(1,0,1)),f.x),mix(h(i+vec3(0,1,1)),h(i+vec3(1,1,1)),f.x),f.y),f.z); }
       void main(){ float y=vD.y;
-        vec3 zen=vec3(0.004,0.002,0.008), hor=vec3(0.045,0.016,0.07), low=vec3(0.012,0.006,0.02);
+        vec3 zen=vec3(0.004,0.002,0.008), hor=uHor, low=vec3(0.012,0.006,0.02);
         vec3 c=mix(hor,zen,smoothstep(0.02,0.6,y)); c=mix(c,low,smoothstep(0.0,-0.25,y));
         float neb=n3(vD*3.0+vec3(0.0,uTime*0.004,0.0))*0.6+n3(vD*7.0)*0.4;
         c+=vec3(0.05,0.012,0.07)*pow(neb,3.0)*smoothstep(-0.05,0.5,y)*uLift;
@@ -433,9 +433,9 @@ function boot(){
     fragmentShader:'uniform float uA; varying vec2 vUv; void main(){ float v=pow(1.0-vUv.y,2.2); float e=1.0-pow(abs(vUv.x-0.5)*2.0,6.0); float base=exp(-vUv.y*60.0)*2.0; gl_FragColor=vec4(vec3(1.0,0.62,0.2)*(v*0.26+base*0.55)*e*uA,1.0); }'},ADD)));
   curtain.rotation.y=Math.PI/2; curtain.scale.set(24,9,1); curtain.position.set(-30,4.5+TOP,0); scene.add(curtain);
   const coneGeo=new THREE.CylinderGeometry(0.3,2.1,17,40,1,true); coneGeo.translate(0,8.5,0);
-  const coneMat=()=>new THREE.ShaderMaterial(Object.assign({uniforms:{uA:{value:0}}, side:THREE.DoubleSide,
+  const coneMat=()=>new THREE.ShaderMaterial(Object.assign({uniforms:{uA:{value:0}, uCol:{value:new THREE.Color(1,0.8,0.5)}}, side:THREE.DoubleSide,
     vertexShader:'varying vec3 vN; varying vec3 vV; varying float vY; void main(){ vec4 w=modelMatrix*vec4(position,1.0); vN=normalize(mat3(modelMatrix)*normal); vV=normalize(cameraPosition-w.xyz); vY=position.y/17.0; gl_Position=projectionMatrix*viewMatrix*w; }',
-    fragmentShader:'uniform float uA; varying vec3 vN; varying vec3 vV; varying float vY; void main(){ float f=pow(abs(dot(normalize(vN),normalize(vV))),1.8); float v=mix(1.0,0.15,vY); gl_FragColor=vec4(vec3(1.0,0.8,0.5)*f*v*0.13*uA,1.0); }'},ADD));
+    fragmentShader:'uniform float uA; uniform vec3 uCol; varying vec3 vN; varying vec3 vV; varying float vY; void main(){ float f=pow(abs(dot(normalize(vN),normalize(vV))),1.8); float v=mix(1.0,0.15,vY); gl_FragColor=vec4(uCol*f*v*0.13*uA,1.0); }'},ADD));
   const cones=[0,1,2].map(()=>{ const m=new THREE.Mesh(coneGeo,coneMat()); m.visible=false; scene.add(m); return m; });
   const beamGeo=new THREE.CylinderGeometry(0.035,0.035,40,6,1,true); beamGeo.translate(0,20,0);
   const beams=[0,1,2,3].map(()=>{ const m=new THREE.Mesh(beamGeo,new THREE.MeshBasicMaterial(Object.assign({color:lin(0xffb020).multiplyScalar(0.75),opacity:0,fog:false},ADD))); m.visible=false; scene.add(m); return m; });
@@ -453,7 +453,7 @@ function boot(){
   const pedestal=new THREE.Group(); scene.add(pedestal); pedestal.visible=false;
   { const top=new THREE.Mesh(new THREE.CylinderGeometry(6.7,6.95,0.34,128), new THREE.MeshStandardMaterial({color:lin(0x0f0818), roughness:0.55, metalness:0.3}));
     top.position.y=-0.18; top.receiveShadow=true; pedestal.add(top);
-    const edge=new THREE.Mesh(new THREE.TorusGeometry(6.71,0.022,8,256), new THREE.MeshBasicMaterial(Object.assign({color:lin(0xb79ad0).multiplyScalar(1.2),fog:false},ADD))); edge.rotation.x=Math.PI/2; edge.position.y=-0.005; pedestal.add(edge);
+    const edge=new THREE.Mesh(new THREE.TorusGeometry(6.71,0.022,8,256), new THREE.MeshBasicMaterial(Object.assign({color:lin(0xb79ad0).multiplyScalar(1.2),fog:false},ADD))); edge.rotation.x=Math.PI/2; edge.position.y=-0.005; pedestal.add(edge); pedestal.userData.edge=edge;
     const lip=new THREE.Mesh(new THREE.TorusGeometry(6.96,0.014,8,256), new THREE.MeshBasicMaterial(Object.assign({color:lin(0xffc54d).multiplyScalar(0.55),fog:false},ADD))); lip.rotation.x=Math.PI/2; lip.position.y=-0.35; pedestal.add(lip);
     const bg=new THREE.CylinderGeometry(0.9,6.4,16,64,1,true); bg.translate(0,8,0); const beam=new THREE.Mesh(bg,coneMat()); beam.material.uniforms.uA.value=0; pedestal.add(beam); pedestal.userData.beam=beam; }
   const DIO_A0={tx:0.2,ty:2.3,tz:0.5,theta:-1.05,phi:1.4,r:14.5,fov:34}, DIO_A1={tx:0.3,ty:1.75,tz:0.6,theta:-0.32,phi:1.08,r:12,fov:36}, DIO_A2={theta:0.42,phi:1.02,r:11.5}, DIO_N={tx:0.7,ty:1.1,tz:2.5,theta:0.08,phi:1.02,r:15.5,fov:36};
@@ -607,7 +607,11 @@ function boot(){
       const a=Math.PI/2-paceA*V.ringFrac*Math.PI*2; ringFlare.position.set(Math.cos(a)*R1,0,-Math.sin(a)*R1); ringFlare.material.opacity=V.rings*Math.min(1,V.ringFrac*4)*0.1;
       ringsG.rotation.y=reduceMotion?0:Math.sin(now*0.00008)*0.08; }
     // the map rig and the diorama rig hand over so each stage is lit for itself
-    const dv=V.dio; hemi.intensity=0.75*(1-dv); key.intensity=1.25*(1-dv); rim.intensity=0.9*(1-dv); dHemi.intensity=0.26*dv; dSun.intensity=0.95*dv; dBack.intensity=0.85*dv; { const b=dio.biome(); dPoint.color.copy(b.color); dPoint.intensity=b.intensity*dv; }
+    const dv=V.dio, TH=dio.theme(); hemi.intensity=0.75*(1-dv); key.intensity=1.25*(1-dv); rim.intensity=0.9*(1-dv); dHemi.intensity=0.26*dv*TH.hemiI; dSun.intensity=0.95*dv*TH.keyI; dBack.intensity=0.85*dv*TH.backI;
+    // each state's theme grades the light, sky horizon and haze while its diorama is on screen
+    dSun.color.copy(TH.key); dBack.color.copy(TH.back); dHemi.color.copy(TH.hs); dHemi.groundColor.copy(TH.hg);
+    sky.material.uniforms.uHor.value.set(0.045+(TH.hor.r-0.045)*dv, 0.016+(TH.hor.g-0.016)*dv, 0.07+(TH.hor.b-0.07)*dv); scene.fog.color.copy(FOGC).lerp(TH.fog,dv);
+    pedestal.userData.beam.material.uniforms.uCol.value.copy(TH.beam); pedestal.userData.edge.material.color.copy(TH.edge).multiplyScalar(1.1); { const b=dio.biome(); dPoint.color.copy(b.color); dPoint.intensity=b.intensity*dv; }
     dio.group.visible=pedestal.visible=dv>0.01; if(dio.group.visible) dio.tick(now, Math.min(1,dv*1.25));
     pedestal.userData.beam.material.uniforms.uA.value=0.55*dv*(0.9+0.1*Math.sin(now*0.0013)); dioDataTick(kf,dv);
     // atmosphere

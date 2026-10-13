@@ -346,27 +346,56 @@ WY:{nick:'Equality State', known:'Devils Tower, the Tetons, Old Faithful, bison 
   // so convert every material colour and colour texture once.
   const done=new WeakSet();
   function linearize(root){ root.traverse(o=>{ if(o.isLight && !done.has(o)){ done.add(o); o.color.convertSRGBToLinear(); o.intensity*=0.45; } const mats=o.material? (Array.isArray(o.material)?o.material:[o.material]) : []; for(const m of mats){ if(done.has(m)) continue; done.add(m);
-      if(m.color && !m.isSpriteMaterial) m.color.convertSRGBToLinear(); if(m.emissive) m.emissive.convertSRGBToLinear();
+      if(m.color && !m.isSpriteMaterial){ m.userData.hex=m.color.getHex(); m.color.convertSRGBToLinear(); } if(m.emissive){ m.userData.ehex=m.emissive.getHex(); m.emissive.convertSRGBToLinear(); }
       for(const k of ['map','emissiveMap']) if(m[k] && m[k].encoding!==THREE.sRGBEncoding){ m[k].encoding=THREE.sRGBEncoding; m[k].needsUpdate=true; }
       m.needsUpdate=true; } }); }
   // ---- cinematic restyle: dark glass plateau with glowing edges, rim-lit landmarks, quieter water, no cartoon clouds ----
   const RIM={value:new THREE.Color(0,0,0)};
   function rimHook(sh){ sh.uniforms.uRim=RIM; sh.fragmentShader=sh.fragmentShader.replace('void main() {','uniform vec3 uRim;\nvoid main() {').replace('#include <emissivemap_fragment>','#include <emissivemap_fragment>\n\t{ float rf=1.0-clamp(dot(normal,normalize(vViewPosition)),0.0,1.0); totalEmissiveRadiance+=uRim*pow(rf,2.6); }'); }
   const L=h=>new THREE.Color(h).convertSRGBToLinear();
+  // ---- cinematic palette: the original's flat colours mapped to porcelain, brushed metal, antique brass, jewel-tone foliage ----
+  const PAL={
+    0xf1f2f2:{c:0xd6d0e2,r:0.42,m:0.12}, 0xcfc8d6:{c:0xb2a9c4,r:0.5,m:0.1}, 0xbcbec0:{c:0x9c96b0,r:0.3,m:0.65}, 0x808285:{c:0x5b556d,r:0.5,m:0.35},
+    0x5a5a66:{c:0x3d384b,r:0.38,m:0.65}, 0x3a2447:{c:0x21132b,r:0.5,m:0.2}, 0xcde6e3:{c:0x93c0bb,r:0.45,m:0.1}, 0xffa400:{c:0xb07422,r:0.36,m:0.5,e:0x3e2300},
+    0x359a8e:{c:0x226f69,r:0.55,m:0.05,e:0x021310}, 0x256d65:{c:0x16443d,r:0.68,m:0.0}, 0x6fb7a8:{c:0x47867c,r:0.42,m:0.35}, 0x77498c:{c:0x50246b,r:0.5,m:0.1,e:0x0a0212},
+    0xcf9a5b:{c:0x775339,r:0.72,m:0.0}, 0x9a8aa5:{c:0x625776,r:0.78,m:0.0}, 0x5a3a22:{c:0x40291b,r:0.82,m:0.0}, 0xd98a2b:{c:0x965a1d,r:0.4,m:0.1},
+  };
+  function grade(hex){ const c=new THREE.Color(hex), hsl={}; c.getHSL(hsl); let h=hsl.h, s=hsl.s*0.78, l=hsl.l;
+    l = l>0.8 ? 0.62+(l-0.8)*0.9 : l*0.8; const dh=((0.75-h+1.5)%1)-0.5; h=(h+dh*0.08+1)%1; c.setHSL(h,s,l); return c.getHex(); }
+  // ---- six themes, one per biome: light, sky, haze, glass tint, edge glow, mist and particles ----
+  const THEMES={
+    forest:  {slab:0x1d2a30, edge:0x63d8c6, pool:0x2a8a80, sea:0x0a282b, key:0xd4e3ff, back:0x3fc2b0, hs:0x8ea6c8, hg:0x06100e, hor:0x0c2a29, part:0xd8ff8c, beam:0xbfe8ff, keyI:0.9, backI:0.85, hemiI:1.0, win:0.55},
+    farm:    {slab:0x2c1d30, edge:0xffc27a, pool:0x8a5a2a, sea:0x12252a, key:0xffd4a4, back:0xa27ae2, hs:0xdcc2ee, hg:0x130a06, hor:0x2a1520, part:0xffd27a, beam:0xffd6a0, keyI:1.0, backI:0.8, hemiI:1.0, win:0.6},
+    desert:  {slab:0x321f1c, edge:0xff9c6c, pool:0x9a4a2a, sea:0x19202a, key:0xffb086, back:0xd26aa6, hs:0xffcdb0, hg:0x1b0c06, hor:0x341521, part:0xffc896, beam:0xffc29a, keyI:1.05, backI:0.85, hemiI:0.95, win:0.55},
+    mountain:{slab:0x1d2135, edge:0x9cc6ff, pool:0x3a5a9a, sea:0x0b1a2a, key:0xe6eeff, back:0x8fb8ff, hs:0xc6d8ff, hg:0x080a14, hor:0x101a33, part:0xffffff, beam:0xd8e6ff, keyI:0.95, backI:0.9, hemiI:1.05, win:0.55},
+    city:    {slab:0x221835, edge:0xc2a6e0, pool:0x5a3a9a, sea:0x0c1926, key:0xbaa9ff, back:0xffb357, hs:0x6a5a9a, hg:0x050309, hor:0x1c1030, part:0xffc54d, beam:0xc9b8ff, keyI:0.8, backI:0.95, hemiI:0.9, win:1.0},
+    coast:   {slab:0x1c2435, edge:0x70e0d8, pool:0x2a8a9a, sea:0x0a2e37, key:0xffe2cc, back:0x5fd6d0, hs:0xb6d2ff, hg:0x06121a, hor:0x0e2234, part:0xbff6ff, beam:0xd6f4ff, keyI:0.95, backI:0.85, hemiI:1.0, win:0.6},
+  };
+  const THEME={}; function setTheme(bio){ const T=THEMES[bio]||THEMES.farm; THEME.bio=bio; for(const k of ['key','back','hs','hg','hor','edge','beam','part']) THEME[k]=L(T[k]); THEME.fog=L(T.hor).multiplyScalar(0.7); THEME.keyI=T.keyI; THEME.backI=T.backI; THEME.hemiI=T.hemiI; return T; }
+  setTheme('farm');
   let styled=null; const BIOLIGHT={color:new THREE.Color(1,1,1), intensity:0};
-  function restyle(){ if(styled===stageAb) return; styled=stageAb;
+  function restyle(){ if(styled===stageAb) return; styled=stageAb; const T=setTheme(biomeOf(stageAb));
+    // grade every landmark and scatter material into the cinematic palette (plateau is replaced below)
+    stage.traverse(o=>{ const ms=o.material?(Array.isArray(o.material)?o.material:[o.material]):[]; for(const m of ms){
+      if(!m.isMeshStandardMaterial || m.userData.graded || m.userData.hex==null) continue; m.userData.graded=true;
+      const P=PAL[m.userData.hex]; m.color.copy(L(P?P.c:grade(m.userData.hex)));
+      if(P){ m.roughness=P.r; m.metalness=P.m; } else { m.roughness=Math.min(0.85,m.roughness*0.85); m.metalness=Math.max(m.metalness,0.08); }
+      if(m.emissiveMap){ m.emissiveIntensity=T.win; }
+      else if(P && P.e){ m.emissive.copy(L(P.e)); }
+      else if(m.userData.ehex){ m.emissive.copy(L(grade(m.userData.ehex))).multiplyScalar(0.7); } } });
     for(const g of stageParts){
       if(g.userData.axis==='y'){ g.traverse(o=>{
-          if(o.isMesh){ const m=new THREE.MeshStandardMaterial({color:L(0x34204a), roughness:0.62, metalness:0.22, emissive:L(0x0b0412)}); m.onBeforeCompile=rimHook; m.userData.rim=true; done.add(m); o.material=m; o.castShadow=true; o.receiveShadow=true; }
-          else if(o.isLineSegments){ const m=new THREE.LineBasicMaterial({color:L(0xb79ad0).multiplyScalar(1.5), transparent:true, opacity:0.95, blending:THREE.AdditiveBlending, depthWrite:false, fog:false}); m.userData.baseOpacity=0.95; done.add(m); o.material=m; } }); }
-      else if(g.isMesh && g.geometry.type==='CircleGeometry' && g.userData.fadeTo===0.12){ g.material.color.copy(L(0x0e2c33)); g.userData.fadeTo=0.55; }
-      else if(g.isMesh && g.geometry.type==='PlaneGeometry' && g.userData.fade){ g.scale.set(1.25,1.25,1.25); }
+          if(o.isMesh){ const m=new THREE.MeshStandardMaterial({color:L(T.slab), roughness:0.62, metalness:0.22, emissive:L(T.slab).multiplyScalar(0.18)}); m.onBeforeCompile=rimHook; m.userData.rim=true; done.add(m); o.material=m; o.castShadow=true; o.receiveShadow=true; }
+          else if(o.isLineSegments){ const m=new THREE.LineBasicMaterial({color:L(T.edge).multiplyScalar(1.3), transparent:true, opacity:0.95, blending:THREE.AdditiveBlending, depthWrite:false, fog:false}); m.userData.baseOpacity=0.95; done.add(m); o.material=m; } }); }
+      else if(g.isMesh && g.geometry.type==='CircleGeometry' && g.userData.fadeTo===0.12){ g.material.color.copy(L(T.sea)); g.userData.fadeTo=0.6; }
+      else if(g.isMesh && g.geometry.type==='PlaneGeometry' && g.userData.fade){ g.scale.set(1.3,1.3,1.3); g.material.color.copy(L(T.pool)).multiplyScalar(1.45); }
     }
     // hand the biome light to the engine: a light that comes and goes would recompile every material on each cut
     if(stageLight){ BIOLIGHT.color.copy(stageLight.color); BIOLIGHT.intensity=stageLight.intensity; stage.remove(stageLight); stageLight=null; }
     for(const c of clouds) c.visible=false;
-    for(const r of ripples){ r.o.material.color.copy(r.sea? L(0x3fc2b0).multiplyScalar(0.45) : L(0xffc54d).multiplyScalar(0.7)); r.o.material.blending=THREE.AdditiveBlending; }
-    if(particles){ const m=particles.material; m.blending=THREE.AdditiveBlending; m.color.multiplyScalar(0.9); m.needsUpdate=true; }
+    for(const r of ripples){ r.o.material.color.copy(r.sea? L(T.edge).multiplyScalar(0.4) : L(0xffc54d).multiplyScalar(0.6)); r.o.material.blending=THREE.AdditiveBlending; }
+    if(particles){ const m=particles.material; m.blending=THREE.AdditiveBlending; m.color.copy(L(T.part)).multiplyScalar(0.85); m.needsUpdate=true; }
+    for(const b of birds){ b.material.color.setRGB(0.55,0.52,0.62); }
     for(const d of dataBars) if(d.m) d.m.visible=false; // replaced by the engine's light pillars
     stage.traverse(o=>{ const ms=o.material?(Array.isArray(o.material)?o.material:[o.material]):[]; for(const m of ms){ if(m.isMeshStandardMaterial && !m.userData.rim){ m.userData.rim=true; m.onBeforeCompile=rimHook; m.needsUpdate=true; } } });
   }
@@ -375,6 +404,7 @@ WY:{nick:'Equality State', known:'Devils Tower, the Tetons, Old Faithful, bison 
     load(ab, fresh){ if(fresh) stageAb=null; stageLoad(ab, !fresh); linearize(stage); restyle(); },
     rim(c){ RIM.value.copy(c); },
     biome(){ return BIOLIGHT; },
+    theme(){ return THEME; },
     capital(){ const o=OUT[stageAb]; return o&&o.cap? {name:o.cap[0], x:o.cap[1]*PS, y:TOP+1.1, z:o.cap[2]*PS} : null; },
     tick(now, alpha){ stageAlpha=alpha; if(!stage.visible) return; setGroupOpacity(stage, alpha); stageTick(now); linearize(stage); },
     data(on){ dataOn=!!on; },
