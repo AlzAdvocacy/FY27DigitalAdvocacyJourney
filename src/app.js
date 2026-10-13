@@ -81,13 +81,13 @@ function boot(){
     // RenderPass draws into readBuffer (renderTarget2); only that one needs MSAA
     if(GL2 && quality>=1){ composer.renderTarget2.dispose(); const ms=new THREE.WebGLMultisampleRenderTarget(w,h,pars); ms.samples=4; composer.renderTarget2=ms; composer.readBuffer=ms; }
     composer.addPass(new THREE.RenderPass(scene,camera));
-    bloom=new THREE.UnrealBloomPass(new THREE.Vector2(w,h), 0.95, 0.62, 0.62);
+    bloom=new THREE.UnrealBloomPass(new THREE.Vector2(w,h), 0.6, 0.5, 0.82);
     composer.addPass(bloom);
     finalPass=new THREE.ShaderPass(FinalShader);
     finalPass.renderToScreen=true; finalPass.needsSwap=false; composer.addPass(finalPass);
   }
   const FinalShader={
-    uniforms:{tDiffuse:{value:null},uTime:{value:0},uExposure:{value:HDR?1.18:1.45},uGrain:{value:reduceMotion?0.025:0.045},uVig:{value:1},uCA:{value:0.9},uFade:{value:0},uFlash:{value:0},uRes:{value:new THREE.Vector2(1,1)}},
+    uniforms:{tDiffuse:{value:null},uTime:{value:0},uExposure:{value:HDR?1.06:1.35},uGrain:{value:reduceMotion?0.025:0.045},uVig:{value:1},uCA:{value:0.9},uFade:{value:0},uFlash:{value:0},uRes:{value:new THREE.Vector2(1,1)}},
     vertexShader:'varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
     fragmentShader:`
       uniform sampler2D tDiffuse; uniform float uTime,uExposure,uGrain,uVig,uCA,uFade,uFlash; uniform vec2 uRes; varying vec2 vUv;
@@ -213,7 +213,9 @@ function boot(){
       plane.setFromNormalAndCoplanarPoint(normal,rwp); plane.applyMatrix4(vcam.matrixWorldInverse); clip.set(plane.normal.x,plane.normal.y,plane.normal.z,plane.constant);
       const pm=vcam.projectionMatrix; q.x=(Math.sign(clip.x)+pm.elements[8])/pm.elements[0]; q.y=(Math.sign(clip.y)+pm.elements[9])/pm.elements[5]; q.z=-1; q.w=(1+pm.elements[10])/pm.elements[14];
       clip.multiplyScalar(2/clip.dot(q)); pm.elements[2]=clip.x; pm.elements[6]=clip.y; pm.elements[10]=clip.z+1; pm.elements[14]=clip.w;
+      const spr=[]; if(dio.group.visible) dio.group.traverse(o=>{ if(o.isSprite&&o.visible){ o.visible=false; spr.push(o); } }); const sau=r.shadowMap.autoUpdate; r.shadowMap.autoUpdate=false;
       m.visible=false; dust.visible=false; const cur=r.getRenderTarget(); r.setRenderTarget(mirrorRT); r.state.buffers.depth.setMask(true); r.clear(); r.render(sc,vcam); r.setRenderTarget(cur); m.visible=true; dust.visible=true;
+      for(const o of spr) o.visible=true; r.shadowMap.autoUpdate=sau;
     };
     return m; })();
   function sizeMirror(){ if(mirrorRT) mirrorRT.dispose(); const f=quality>=2?0.5:0.35; const w=Math.max(64,Math.round(innerWidth*renderer.getPixelRatio()*f)), h=Math.max(64,Math.round(innerHeight*renderer.getPixelRatio()*f));
@@ -221,7 +223,7 @@ function boot(){
     if(mirrorRT){ mirrorRT.texture.generateMipmaps=false; floor.material.uniforms.tDiffuse.value=mirrorRT.texture; floor.material.uniforms.uTex.value.set(1/w,1/h); }
     floor.material.uniforms.uMirror.value = mirrorRT?1:0; }
 
-  scene.add(new THREE.HemisphereLight(lin(0x9a7ab8), lin(0x080410), 0.75));
+  const hemi=new THREE.HemisphereLight(lin(0x9a7ab8), lin(0x080410), 0.75); scene.add(hemi);
   const key=new THREE.DirectionalLight(lin(0xfff1e2),1.25); key.position.set(-14,26,12); scene.add(key);
   const rim=new THREE.DirectionalLight(lin(0x9b6fd0),0.9); rim.position.set(16,9,-20); scene.add(rim);
 
@@ -317,12 +319,12 @@ function boot(){
           else { vis=smoothstep(0.9,1.0,g)*uNew; c=vec3(0.45,1.25,1.05); }
           float flash=(aKind>1.5&&aKind<2.5)?exp(-pow((g-1.08)*5.0,2.0)):0.0;
           float act=aAct*smoothstep(aDelay*0.6,aDelay*0.6+0.4,uAct);
-          c=mix(c,vec3(1.0,0.48,0.06)*2.4,act);
+          c=mix(c,vec3(1.0,0.58,0.14)*1.1,act);
           float tw=0.78+0.22*sin(uTime*(1.3+aSeed*2.2)+aSeed*40.0);
           vA=vis*uFade*tw;
           vC=c*(1.0+flash*3.0);
           vec4 mv=modelViewMatrix*vec4(position,1.0);
-          gl_PointSize=uSize*(1.0+act*0.9+flash*2.5)*uPx/-mv.z;
+          gl_PointSize=uSize*(1.0+act*0.45+flash*2.0)*uPx/-mv.z;
           gl_Position=projectionMatrix*mv; }`,
       fragmentShader:'varying vec3 vC; varying float vA; void main(){ float d=length(gl_PointCoord-0.5)*2.0; if(d>1.0) discard; float a=pow(1.0-d,2.0); float core=smoothstep(0.4,0.0,d); gl_FragColor=vec4(vC*(a*0.55+core*1.2)*vA,1.0); }'},ADD));
     const pts=new THREE.Points(g,m); pts.frustumCulled=false; scene.add(pts);
@@ -346,7 +348,7 @@ function boot(){
     const tm=new THREE.ShaderMaterial(Object.assign({uniforms:tuni,
       vertexShader:`attribute vec3 aB; attribute float aE,aDelay,aSeed; uniform float uAct,uThread; varying float vA;
         void main(){ float a=smoothstep(aDelay*0.6,aDelay*0.6+0.4,uAct); float h=(1.4+aSeed*3.2)*a; vec3 p=aB+vec3(0.0,aE*h,0.0); vA=(1.0-aE)*a*uThread; gl_Position=projectionMatrix*viewMatrix*vec4(p,1.0); }`,
-      fragmentShader:'varying float vA; void main(){ gl_FragColor=vec4(vec3(1.0,0.5,0.08)*1.6*vA,1.0); }'},ADD));
+      fragmentShader:'varying float vA; void main(){ gl_FragColor=vec4(vec3(1.0,0.6,0.18)*0.5*vA,1.0); }'},ADD));
     const threads=new THREE.LineSegments(tg,tm); threads.frustumCulled=false; scene.add(threads);
     return {pts, uni, threads, tuni, streaks, n, fallers:fallers.length, actors:actors.length};
   })();
@@ -366,7 +368,7 @@ function boot(){
           vec3 dir=normalize(vec3(cos(ang),(aR.z-0.5)*0.7,sin(ang)));
           float b=uBurst; p+=dir*(5.0+aR.x*34.0)*b; p.y-=b*b*6.0*(0.4+aR.z);
           vA=uA*(1.0-b)*(0.35+0.65*cv);
-          vC=mix(vec3(1.0,0.42,0.05),vec3(1.0,0.86,0.62),aR.z)*(1.2+cv*2.2);
+          vC=mix(vec3(1.0,0.48,0.1),vec3(1.0,0.86,0.62),aR.z)*(0.7+cv*0.9);
           vec4 mv=modelViewMatrix*vec4(p,1.0); gl_PointSize=(0.09+aR.x*0.12)*uPx/-mv.z*(1.0+b*0.6); gl_Position=projectionMatrix*mv; }`,
       fragmentShader:'varying float vA; varying vec3 vC; void main(){ float d=length(gl_PointCoord-0.5)*2.0; if(d>1.0) discard; gl_FragColor=vec4(vC*pow(1.0-d,1.6)*vA,1.0); }'},ADD));
     const p=new THREE.Points(g,m); p.frustumCulled=false; scene.add(p); return {p,uni}; })();
@@ -379,7 +381,7 @@ function boot(){
       vertexShader:`attribute float aR; uniform float uA,uTime,uPx; varying float vA; varying vec3 vC;
         void main(){ vec3 p=position; float sp=0.25+aR*0.55; p.y=mod(position.y+uTime*sp,12.0)+0.4; p.x+=sin(uTime*0.4+aR*30.0)*0.5; p.z+=cos(uTime*0.33+aR*20.0)*0.5;
           float life=p.y/12.4; vA=uA*smoothstep(0.0,0.1,life)*(1.0-smoothstep(0.55,1.0,life))*(0.6+0.4*sin(uTime*3.0+aR*50.0));
-          vC=mix(vec3(1.0,0.45,0.06),vec3(1.0,0.85,0.55),aR)*2.0;
+          vC=mix(vec3(1.0,0.5,0.1),vec3(1.0,0.85,0.55),aR)*0.85;
           vec4 mv=modelViewMatrix*vec4(p,1.0); gl_PointSize=(0.08+aR*0.1)*uPx/-mv.z; gl_Position=projectionMatrix*mv; }`,
       fragmentShader:'varying float vA; varying vec3 vC; void main(){ float d=length(gl_PointCoord-0.5)*2.0; if(d>1.0) discard; gl_FragColor=vec4(vC*pow(1.0-d,2.0)*vA,1.0); }'},ADD));
     const pts=new THREE.Points(g,m); pts.frustumCulled=false; scene.add(pts); return {uni}; })();
@@ -395,7 +397,7 @@ function boot(){
     const pts=new THREE.Points(g,m); pts.frustumCulled=false; scene.add(pts); return pts; })();
 
   // ---------- timeline: FY26 glass panes and FY27 monoliths behind the map ----------
-  const TLZ=-17.5, TLX=i=>(i-5.5)*2.35, TLMAX=Math.max(...N.full12,...N.a), TLH=13.5/TLMAX;
+  const TLZ=0, TLX=i=>(i-5.5)*2.35, TLMAX=Math.max(...N.full12,...N.a), TLH=13.5/TLMAX;
   const tlG=new THREE.Group(); scene.add(tlG);
   const boxGeo=new THREE.BoxGeometry(1,1,1); boxGeo.translate(0,0.5,0);
   const boxEdges=new THREE.EdgesGeometry(boxGeo);
@@ -409,43 +411,43 @@ function boot(){
   const tlFlare=new THREE.Sprite(new THREE.SpriteMaterial(Object.assign({map:glowTex,color:new THREE.Color(1,0.7,0.3),opacity:0,fog:false},ADD))); tlFlare.scale.set(5,5,1); tlG.add(tlFlare);
 
   // ---------- pace halo: two rings in the sky above the map ----------
-  const RING_Y=8.5, R1=9.6, R2=7.2;
+  const RING_Y=4.2, R1=9.6, R2=7.2;
   const ringsG=new THREE.Group(); ringsG.position.y=RING_Y; scene.add(ringsG);
   function arcMat(color, glow){ return new THREE.ShaderMaterial(Object.assign({uniforms:{uFrac:{value:0},uColor:{value:color},uGlow:{value:glow},uA:{value:0},uTime:U.uTime},
     vertexShader:'varying vec3 vP; void main(){ vP=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
     fragmentShader:`uniform float uFrac,uGlow,uA,uTime; uniform vec3 uColor; varying vec3 vP;
       void main(){ float a=atan(vP.y,vP.x); float u=fract((1.5707963-a)/6.2831853); if(u>uFrac) discard;
         float head=exp(-pow((uFrac-u)*40.0,2.0)); float flow=0.85+0.15*sin(u*120.0-uTime*3.0);
-        gl_FragColor=vec4(uColor*uGlow*(flow+head*1.6)*uA,1.0); }`},ADD,{side:THREE.DoubleSide})); }
+        gl_FragColor=vec4(uColor*uGlow*(flow+head*0.8)*uA,1.0); }`},ADD,{side:THREE.DoubleSide})); }
   function track(R,t){ const m=new THREE.Mesh(new THREE.TorusGeometry(R,t,8,256), new THREE.MeshBasicMaterial(Object.assign({color:lin(0x8c79a3),opacity:0,fog:false},ADD))); m.rotation.x=-Math.PI/2; ringsG.add(m); return m; }
   const trackA=track(R1,0.05), trackN=track(R2,0.045);
-  const fillA=new THREE.Mesh(new THREE.TorusGeometry(R1,0.2,16,480), arcMat(WHITE.clone(),0.5)); fillA.rotation.x=-Math.PI/2; ringsG.add(fillA);
-  const fillN=new THREE.Mesh(new THREE.TorusGeometry(R2,0.17,16,400), arcMat(TEAL.clone(),0.75)); fillN.rotation.x=-Math.PI/2; ringsG.add(fillN);
-  const tick=new THREE.Mesh(new THREE.BoxGeometry(R1-R2+2.0,0.08,0.16), new THREE.MeshBasicMaterial(Object.assign({color:lin(0xffa400).multiplyScalar(3),opacity:0,fog:false},ADD)));
+  const fillA=new THREE.Mesh(new THREE.TorusGeometry(R1,0.2,16,480), arcMat(WHITE.clone(),0.32)); fillA.rotation.x=-Math.PI/2; ringsG.add(fillA);
+  const fillN=new THREE.Mesh(new THREE.TorusGeometry(R2,0.17,16,400), arcMat(TEAL.clone(),0.6)); fillN.rotation.x=-Math.PI/2; ringsG.add(fillN);
+  const tick=new THREE.Mesh(new THREE.BoxGeometry(R1-R2+2.0,0.08,0.16), new THREE.MeshBasicMaterial(Object.assign({color:lin(0xffa400).multiplyScalar(1.15),opacity:0,fog:false},ADD)));
   { const a=Math.PI/2-(fyPct/100)*Math.PI*2, rm=(R1+R2)/2; tick.position.set(Math.cos(a)*rm,0,-Math.sin(a)*rm); tick.rotation.y=a; ringsG.add(tick); }
   const ringFlare=new THREE.Sprite(new THREE.SpriteMaterial(Object.assign({map:glowTex,color:new THREE.Color(1,0.75,0.35),opacity:0,fog:false},ADD))); ringFlare.scale.set(3,3,1); ringsG.add(ringFlare);
 
   // ---------- effects: sweep curtain, spotlights, sky beams ----------
   const curtain=new THREE.Mesh(new THREE.PlaneGeometry(1,1), new THREE.ShaderMaterial(Object.assign({uniforms:{uA:{value:0}}, side:THREE.DoubleSide,
     vertexShader:'varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
-    fragmentShader:'uniform float uA; varying vec2 vUv; void main(){ float v=pow(1.0-vUv.y,2.2); float e=1.0-pow(abs(vUv.x-0.5)*2.0,6.0); float base=exp(-vUv.y*60.0)*2.0; gl_FragColor=vec4(vec3(1.0,0.55,0.1)*(v*0.55+base)*e*uA,1.0); }'},ADD)));
+    fragmentShader:'uniform float uA; varying vec2 vUv; void main(){ float v=pow(1.0-vUv.y,2.2); float e=1.0-pow(abs(vUv.x-0.5)*2.0,6.0); float base=exp(-vUv.y*60.0)*2.0; gl_FragColor=vec4(vec3(1.0,0.62,0.2)*(v*0.26+base*0.55)*e*uA,1.0); }'},ADD)));
   curtain.rotation.y=Math.PI/2; curtain.scale.set(24,9,1); curtain.position.set(-30,4.5+TOP,0); scene.add(curtain);
   const coneGeo=new THREE.CylinderGeometry(0.3,2.1,17,40,1,true); coneGeo.translate(0,8.5,0);
   const coneMat=()=>new THREE.ShaderMaterial(Object.assign({uniforms:{uA:{value:0}}, side:THREE.DoubleSide,
     vertexShader:'varying vec3 vN; varying vec3 vV; varying float vY; void main(){ vec4 w=modelMatrix*vec4(position,1.0); vN=normalize(mat3(modelMatrix)*normal); vV=normalize(cameraPosition-w.xyz); vY=position.y/17.0; gl_Position=projectionMatrix*viewMatrix*w; }',
-    fragmentShader:'uniform float uA; varying vec3 vN; varying vec3 vV; varying float vY; void main(){ float f=pow(abs(dot(normalize(vN),normalize(vV))),1.8); float v=mix(1.0,0.15,vY); gl_FragColor=vec4(vec3(1.0,0.78,0.42)*f*v*0.32*uA,1.0); }'},ADD));
+    fragmentShader:'uniform float uA; varying vec3 vN; varying vec3 vV; varying float vY; void main(){ float f=pow(abs(dot(normalize(vN),normalize(vV))),1.8); float v=mix(1.0,0.15,vY); gl_FragColor=vec4(vec3(1.0,0.8,0.5)*f*v*0.13*uA,1.0); }'},ADD));
   const cones=[0,1,2].map(()=>{ const m=new THREE.Mesh(coneGeo,coneMat()); m.visible=false; scene.add(m); return m; });
   const beamGeo=new THREE.CylinderGeometry(0.035,0.035,40,6,1,true); beamGeo.translate(0,20,0);
-  const beams=[0,1,2,3].map(()=>{ const m=new THREE.Mesh(beamGeo,new THREE.MeshBasicMaterial(Object.assign({color:lin(0xffb020).multiplyScalar(2.2),opacity:0,fog:false},ADD))); m.visible=false; scene.add(m); return m; });
+  const beams=[0,1,2,3].map(()=>{ const m=new THREE.Mesh(beamGeo,new THREE.MeshBasicMaterial(Object.assign({color:lin(0xffb020).multiplyScalar(0.75),opacity:0,fog:false},ADD))); m.visible=false; scene.add(m); return m; });
 
   // ---------- state close-up: monthly pillars on the lifted state ----------
-  const stageCol=instanced(cylGeo(), pillarMat(PILLAR_F), 5); stageCol.count=5; scene.add(stageCol);
-  const stageRing=instanced(ringGeo.clone(), pillarMat(EMIT_F,{mat:ADD}), 4); scene.add(stageRing);
-  const STG={on:0, h:[0,0,0,0,0], th:[0,0,0,0,0], g:[0,0,0,0], tg:[0,0,0,0], ab:null, pos:[], px:0, pz:0};
-  const plinthMat=pillarMat(GHOST_F,{mat:Object.assign({side:THREE.DoubleSide},ADD)}); plinthMat.uniforms.uColor.value=lin(0xcfc2e6);
-  const plinth=new THREE.Group(); { const m=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),plinthMat); const e=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1,1,1)),new THREE.LineBasicMaterial(Object.assign({color:lin(0xffc54d),opacity:0,fog:false},ADD))); plinth.add(m); plinth.add(e); plinth.userData.e=e; }
-  plinth.scale.set(5.5,0.08,1.6); plinth.visible=false; scene.add(plinth);
-  const PL_Y=0.32;
+  // ---------- state dioramas (ported from the original edition), staged on their own at the origin ----------
+  const dio=makeStateStage({scene, byAb, fmt, cum, monthShort, reduceMotion}); dio.group.visible=false;
+  renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+  const dHemi=new THREE.HemisphereLight(lin(0xffffff), lin(0x4a0d66), 0); scene.add(dHemi);
+  const dSun=new THREE.DirectionalLight(lin(0xfff6ee),0); dSun.position.set(8,18,6); dSun.castShadow=true; dSun.shadow.mapSize.set(2048,2048); Object.assign(dSun.shadow.camera,{left:-9,right:9,top:9,bottom:-9,near:1,far:60}); dSun.shadow.bias=-0.0008; dSun.shadow.radius=4; scene.add(dSun);
+  const dBack=new THREE.DirectionalLight(lin(0xa486b3),0); dBack.position.set(-10,8,-8); scene.add(dBack);
+  const DIO_A0={tx:0.4,ty:1.0,tz:0.9,theta:-0.8,phi:0.98,r:20,fov:36}, DIO_A1={tx:0.5,ty:0.8,tz:0.8,theta:-0.3,phi:0.86,r:14.5,fov:36}, DIO_A2={theta:0.35,r:14}, DIO_N={tx:0.8,ty:0.6,tz:2.0,theta:0.12,phi:0.8,r:18.5,fov:36};
 
   // ---------- projected HTML labels ----------
   const LBL=[]; const layer=$('labels'); const _v=new THREE.Vector3();
@@ -458,7 +460,6 @@ function boot(){
   const mo26L=[0,1,2,3,4,5,6,7,8,9,10,11].map(()=>mkLabel('val'));
   const ringL=[mkLabel('ring'),mkLabel('ring'),mkLabel('ring')];
   const cloudL=mkLabel('cloud');
-  const stageL=[0,1,2,3,4].map(()=>mkLabel('val')); const stageML=[0,1,2,3,4].map(()=>{ const L=mkLabel('mo'); L.ay=0; return L; });
   let labW=1,labH=1;
   function labelsTick(dt){ const k=1-Math.exp(-dt*7);
     for(const L of LBL){ L.o+=(L.to-L.o)*k; if(L.o<0.01 && L.to===0){ if(L.shown){ L.el.style.display='none'; L.shown=false; } continue; }
@@ -469,14 +470,14 @@ function boot(){
   function hideLabels(set){ for(const L of (set||LBL)) L.to=0; }
 
   // ---------- world state: everything the scenes ask for, eased each frame ----------
-  const V={map:0, edges:0, cols:0, ghost:0, colT:4, old:0, net:0, fall:0, act:0, thread:0, conv:0, burst:0, vortex:0, core:0, embers:0, curtain:-30, curtainA:0, tl:0, rings:0, ringFrac:0, flash:0, fade:0, cone:0, beam:0, stage:0, abLab:0, cloud:0, skyLift:1};
+  const V={map:0, edges:0, cols:0, ghost:0, colT:4, old:0, net:0, fall:0, act:0, thread:0, conv:0, burst:0, vortex:0, core:0, embers:0, curtain:-30, curtainA:0, tl:0, rings:0, ringFrac:0, flash:0, fade:0, cone:0, beam:0, stage:0, abLab:0, cloud:0, skyLift:1, dio:0};
   const TW=[];
   function tw(key,to,ms,ez){ for(let i=TW.length-1;i>=0;i--) if(TW[i].k===key) TW.splice(i,1); if(reduceMotion||!ms){ V[key]=to; return; } TW.push({k:key,from:V[key],to,t0:performance.now(),ms,ez:ez||ease3}); }
   function twTick(now){ for(let i=TW.length-1;i>=0;i--){ const t=TW[i]; const p=clamp((now-t.t0)/t.ms,0,1); V[t.k]=t.from+(t.to-t.from)*t.ez(p); if(p>=1) TW.splice(i,1); } }
-  let metric='a', colorMode='growth', ghostOnly=false;
+  let metric='a', colorMode='growth', ghostOnly=false, liftAb=null, SNAP=false, curStage='cold';
   let hl=new Set(), lanes=new Set(), dimOthers=false, litAhead=new Set(), spot=[], beamOn=[];
-  const DEF={map:1, edges:1, cols:0, ghost:0, old:0, net:0, act:0, thread:0, vortex:0, core:0, embers:0, curtainA:0, tl:0, rings:0, cone:0, beam:0, stage:0, abLab:0, cloud:0, skyLift:1};
-  function world(cfg, ms){ cfg=cfg||{}; const d=ms==null?1400:ms;
+  const DEF={map:1, edges:1, cols:0, ghost:0, old:0, net:0, act:0, thread:0, vortex:0, core:0, embers:0, curtainA:0, tl:0, rings:0, cone:0, beam:0, stage:0, abLab:0, cloud:0, skyLift:1, dio:0};
+  function world(cfg, ms){ cfg=cfg||{}; const d=SNAP?0:(ms==null?1400:ms); // SNAP: applied while the screen is black between stages
     for(const k in DEF){ const to = (k in cfg) ? cfg[k] : DEF[k]; for(let i=TW.length-1;i>=0;i--) if(TW[i].k===k) TW.splice(i,1); if(V[k]!==to) tw(k,to,d); } // cancel fades left over from the previous scene
     if('colT' in cfg) tw('colT',cfg.colT,cfg.colTms||0,t=>t);
     if('fall' in cfg) tw('fall',cfg.fall,cfg.fallMs||0,t=>t);
@@ -484,7 +485,7 @@ function boot(){
     metric=cfg.metric||'a'; colorMode=cfg.colorMode||'growth'; ghostOnly=!!cfg.ghostOnly;
     hl=new Set(cfg.hl||[]); lanes=new Set(cfg.lanes||[]); dimOthers=!!cfg.dimOthers; litAhead=new Set(cfg.litAhead||[]);
     spot=cfg.spot||[]; beamOn=cfg.beams||[];
-    STG.ab=cfg.stageAb||null; }
+    liftAb=cfg.stageAb||null; }
 
   function mVal(s,t){ if(metric==='r') return s.c? s.tk/s.c : 0; return cum(s[metric],t); }
   function mVal26(s,t){ if(metric==='r') return null; return cum(s[metric+'26'],t); }
@@ -496,7 +497,7 @@ function boot(){
   function worldTick(dt, now){
     const k=1-Math.exp(-dt*(reduceMotion?60:3.2)), kf=1-Math.exp(-dt*(reduceMotion?60:6)), kh=1-Math.exp(-dt*(reduceMotion?60:3.6));
     const sc=mScale();
-    const anyHl=hl.size>0, stageAb=STG.ab;
+    const anyHl=hl.size>0, stageAb=liftAb;
     // map slabs
     for(const s of states){ const M=s.M;
       const isHl=hl.has(s.ab), isLane=lanes.has(s.ab), isLit=litAhead.has(s.ab), isStage=stageAb===s.ab;
@@ -509,10 +510,10 @@ function boot(){
       const base=V.map*rev*(1-M.dim*0.75);
       s.mesh.material.color.copy(SLAB).multiplyScalar(base); s.mesh.visible=V.map*rev>0.01;
       const pulse=0.75+0.25*Math.sin(now*0.004);
-      _c.setRGB(0,0,0); addS(_c,GOLD,M.hl*(isStage?0.12:0.32)); addS(_c,DARKGOLD,M.lane*0.5*pulse); addS(_c,GOLD2,M.glow*0.075);
+      _c.setRGB(0,0,0); addS(_c,GOLD,M.hl*(isStage?0.08:0.15)); addS(_c,DARKGOLD,M.lane*0.5*pulse); addS(_c,GOLD2,M.glow*0.035);
       s.mesh.material.emissive.copy(_c).multiplyScalar(V.map*rev);
       s.mesh.position.y=M.lift; s.mesh.scale.set(M.sc,1,M.sc);
-      const eU=s.lines.material.uniforms; eU.uColor.value.copy(VIOLET).lerp(GOLD2,Math.max(M.hl,M.glow*0.8,M.lane*pulse)); eU.uA.value=V.edges*(0.5+Math.max(M.hl,M.glow*0.55,M.lane)*1.2)*(1-M.dim*0.7);
+      const eU=s.lines.material.uniforms; eU.uColor.value.copy(VIOLET).lerp(GOLD2,Math.max(M.hl,M.glow*0.8,M.lane*pulse)); eU.uA.value=V.edges*(0.5+Math.max(M.hl*0.7,M.glow*0.4,M.lane*0.7))*(1-M.dim*0.7);
     }
     // columns
     for(const s of states){ const C=s.C, M=s.M;
@@ -524,7 +525,7 @@ function boot(){
       const isHl=hl.has(s.ab), isLane=lanes.has(s.ab);
       C.tcol.copy(isHl?GOLD2:(isLane?DARKGOLD:growthColor(s)));
       C.col.lerp(C.tcol,kf);
-      C.tglow = (isHl?1.6:(isLane?0.9:(colorMode==='flat'||metric==='r'?0.62:1.0))) * (1-M.dim*0.82) * (stageAb?0:1);
+      C.tglow = (isHl?1.0:(isLane?0.9:(colorMode==='flat'||metric==='r'?0.62:1.0))) * (1-M.dim*0.82) * (stageAb?0:1);
       C.glow+=(C.tglow-C.glow)*kf;
       const y=TOP+M.lift;
       _o.position.set(s.lx,y,s.lz); _o.rotation.set(0,0,0);
@@ -549,7 +550,7 @@ function boot(){
     cloudL.p.set(CLOUD.x,CLOUD.y+1.6,CLOUD.z); cloudL.to=V.cloud;
     // vortex and core
     vortex.uni.uConv.value=V.conv; vortex.uni.uBurst.value=V.burst; vortex.uni.uA.value=V.vortex; vortex.p.visible=V.vortex>0.002;
-    core.material.opacity=V.core; core.scale.setScalar(4+V.core*6+V.flash*30); core.visible=V.core>0.002;
+    core.material.opacity=V.core*0.45; core.scale.setScalar(4+V.core*6+V.flash*30); core.visible=V.core>0.002;
     embers.uni.uA.value=V.embers;
     // curtain sweep
     curtain.position.x=V.curtain; curtain.material.uniforms.uA.value=V.curtainA; curtain.visible=V.curtainA>0.002;
@@ -559,45 +560,23 @@ function boot(){
     // timeline
     tlG.visible=V.tl>0.002;
     if(tlG.visible){ panes.forEach((p,i)=>{ p.h+=(p.th-p.h)*kf; p.g.scale.y=Math.max(0.001,p.h); p.e.material.opacity=0.38*V.tl; });
-      monos.forEach((m,i)=>{ m.h+=(m.th-m.h)*kf; m.m.scale.y=Math.max(0.001,m.h); m.mat.uniforms.uH.value=m.h; m.mat.uniforms.uGlow.value=(i===PK?0.95:0.5)*V.tl; });
+      monos.forEach((m,i)=>{ m.h+=(m.th-m.h)*kf; m.m.scale.y=Math.max(0.001,m.h); m.mat.uniforms.uH.value=m.h; m.mat.uniforms.uGlow.value=(i===PK?0.6:0.42)*V.tl; });
       glassMat.uniforms.uGlow.value=2.2*V.tl; axis.material.opacity=0.8*V.tl;
-      tlFlare.position.set(TLX(PK),FLOOR_Y+monos[PK].h+0.2,TLZ+1.1); tlFlare.material.opacity=V.tl*Math.min(1,monos[PK].h/8)*0.45; }
+      tlFlare.position.set(TLX(PK),FLOOR_Y+monos[PK].h+0.2,TLZ+1.1); tlFlare.material.opacity=V.tl*Math.min(1,monos[PK].h/8)*0.16; }
     // rings
     ringsG.visible=V.rings>0.002;
     if(ringsG.visible){ trackA.material.opacity=trackN.material.opacity=0.5*V.rings; tick.material.opacity=V.rings;
       fillA.material.uniforms.uFrac.value=paceA*V.ringFrac; fillN.material.uniforms.uFrac.value=paceN*V.ringFrac; fillA.material.uniforms.uA.value=fillN.material.uniforms.uA.value=V.rings;
-      const a=Math.PI/2-paceA*V.ringFrac*Math.PI*2; ringFlare.position.set(Math.cos(a)*R1,0,-Math.sin(a)*R1); ringFlare.material.opacity=V.rings*Math.min(1,V.ringFrac*4)*0.45;
+      const a=Math.PI/2-paceA*V.ringFrac*Math.PI*2; ringFlare.position.set(Math.cos(a)*R1,0,-Math.sin(a)*R1); ringFlare.material.opacity=V.rings*Math.min(1,V.ringFrac*4)*0.1;
       ringsG.rotation.y=reduceMotion?0:Math.sin(now*0.00008)*0.08; }
-    // state close-up pillars
-    stageTick(kf);
+    // the map rig and the diorama rig hand over so each stage is lit for itself
+    const dv=V.dio; hemi.intensity=0.75*(1-dv); key.intensity=1.25*(1-dv); rim.intensity=0.9*(1-dv); dHemi.intensity=0.42*dv; dSun.intensity=0.62*dv; dBack.intensity=0.22*dv;
+    dio.group.visible=dv>0.01; if(dio.group.visible) dio.tick(now, Math.min(1,dv*1.25));
     // atmosphere
     sky.material.uniforms.uLift.value=V.skyLift; stars.material.uniforms.uA.value=0.5+0.5*V.skyLift;
     finalPass.uniforms.uFlash.value=V.flash; finalPass.uniforms.uFade.value=V.fade;
   }
 
-  function stageTick(kf){
-    const s=STG.ab && byAb[STG.ab];
-    for(let j=0;j<5;j++){ STG.h[j]+=((s&&V.stage>0.5?STG.th[j]:0)-STG.h[j])*kf*0.8; }
-    for(let j=0;j<4;j++){ STG.g[j]+=((s&&V.stage>0.5?STG.tg[j]:0)-STG.g[j])*kf*0.8; }
-    stageCol.visible=stageRing.visible=plinth.visible=!!s && V.stage>0.002;
-    if(!s){ for(const L of stageL.concat(stageML)) L.to=0; return; }
-    const y=TOP+s.M.lift+PL_Y+0.04;
-    plinth.position.set(STG.px,y-0.04,STG.pz); plinthMat.uniforms.uGlow.value=2.4*V.stage; plinth.userData.e.material.opacity=0.55*V.stage;
-    for(let j=0;j<5;j++){ const [x,z]=STG.pos[j]; _o.position.set(x,y,z); _o.scale.set(j===4?0.26:0.3,Math.max(0.001,STG.h[j]),j===4?0.26:0.3); _o.updateMatrix(); stageCol.setMatrixAt(j,_o.matrix);
-      const c = j===4 ? TEAL : (j===PK ? GOLD2 : WHITE); stageCol.geometry.attributes.aColor.setXYZ(j,c.r,c.g,c.b); stageCol.geometry.attributes.aGlow.setX(j,V.stage*(j===PK?0.8:(j===4?0.75:0.45))); stageCol.geometry.attributes.aH.setX(j,STG.h[j]);
-      stageL[j].p.set(x,y+STG.h[j]+0.3,z); stageML[j].p.set(x,y-0.1,z+0.85); }
-    for(let j=0;j<4;j++){ const [x,z]=STG.pos[j]; _o.position.set(x,y+STG.g[j],z); _o.scale.setScalar(0.46); _o.updateMatrix(); stageRing.setMatrixAt(j,_o.matrix); stageRing.geometry.attributes.aColor.setXYZ(j,SILVER.r,SILVER.g,SILVER.b); stageRing.geometry.attributes.aGlow.setX(j,V.stage*(STG.g[j]>0.03?1:0)); }
-    for(const m of [stageCol,stageRing]){ m.instanceMatrix.needsUpdate=true; for(const a of ['aColor','aGlow','aH']) m.geometry.attributes[a].needsUpdate=true; }
-  }
-  function stageSet(s){ const a=s.a, a26=s.a26; const n27=sum(s.n), n26=sum(s.n26);
-    const kA=3.8/Math.max(1,...a,...a26), kN=3.8/Math.max(1,n27,n26);
-    STG.th=[...a.map(v=>Math.max(0.04,v*kA)), Math.max(0.04,n27*kN)]; STG.tg=a26.map(v=>v*kA);
-    const sc=Math.max(1, 6.4/Math.max(0.2,s.ext)); const cx=s.lx+s.cx*sc, cz=s.lz+s.cz*sc;
-    STG.px=cx+0.18; STG.pz=Math.min(s.lz+s.ez1*sc+1.1, cz+2.6);
-    STG.pos=[0,1,2,3,4].map(j=>[STG.px+(j-2)*0.95+(j===4?0.35:0)-0.18, STG.pz]);
-    const ml=['Jul','Aug','Sep','Oct 1 to '+asOf.getDate(),'New'];
-    for(let j=0;j<5;j++){ setText(stageL[j], j<4? fmt(a[j]) : fmt(n27)); stageL[j].el.className='lbl val'+(j===PK?' big':''); stageML[j].el.textContent=ml[j]; }
-  }
 
   // ---------- camera ----------
   const cam={theta:-0.2, phi:0.62, r:62, tx:0, ty:4, tz:0, fov:36};
@@ -669,40 +648,40 @@ function boot(){
 
   function buildScenes(){
     scenes=[
-      {k:'Opening', t:'FY27 so far', ms:15000, run(){ const my=runId; cinema(true); statHide(); hideLabels();
+      {k:'Opening', t:'FY27 so far', stage:'cold', ms:15000, run(){ const my=runId; cinema(true); statHide(); hideLabels();
           world({map:0, edges:0, vortex:1, core:0.3, cols:0, colT:4, skyLift:0.4},0); EDGE_U.uReveal.value=-30; tw('conv',0,0); tw('burst',0,0); tw('flash',0,0);
           setCam({tx:0,ty:5,tz:0,theta:-0.25,phi:1.05,r:38,fov:40}); flyTo({theta:0.35,phi:0.95,r:30,fov:36},8800); drift=0;
           cold.classList.add('on'); coldLine.classList.remove('on'); caption(['']);
           tw('conv',1,4600,t=>t*t*(3-2*t)); tw('core',1,4600);
           const t0=performance.now(), d=reduceMotion?0:4600; const step=now=>{ if(runId!==my) return; const p=d?Math.min(1,(now-t0)/d):1; coldNum.textContent=fmt(total27*(1-Math.pow(1-p,4))); if(p<1) requestAnimationFrame(step); }; coldNum.textContent='0'; requestAnimationFrame(step);
           later(()=>{ coldLine.textContent=''; const b=document.createElement('b'); b.textContent='×'+ratio.toFixed(1); coldLine.appendChild(b); coldLine.appendChild(document.createTextNode(' the same '+dayWord+' days last year.')); coldLine.classList.add('on'); }, 5000);
-          later(()=>{ cold.classList.remove('on'); tw('flash',0.85,140); later(()=>tw('flash',0,1600),160); tw('burst',1,3200,easeOut); tw('core',0,1200); tw('vortex',0,3200); tw('map',1,2600); tw('edges',1,1200); tw('skyLift',1,3000);
+          later(()=>{ cold.classList.remove('on'); curStage='map'; tw('flash',0.55,140); later(()=>tw('flash',0,1600),160); tw('burst',1,3200,easeOut); tw('core',0,1200); tw('vortex',0,3200); tw('map',1,2600); tw('edges',1,1200); tw('skyLift',1,3000);
             const r0=performance.now(); const rv=now=>{ if(runId!==my) return; const p=Math.min(1,(now-r0)/2600); EDGE_U.uReveal.value=-20+46*easeOut(p); if(p<1) requestAnimationFrame(rv); }; requestAnimationFrame(rv);
             if(reduceMotion) EDGE_U.uReveal.value=40;
             flyTo(HOME,5200,6); later(()=>{ tw('cols',1,2600); tw('abLab',0.7,2000); },1600); }, 8600);
           later(()=>{ cinema(false); caption(['July 1 to October ', {b: asOf.getDate()+', 2026'}, '. What ', {b: fmt(N.tk)+' advocates'}, ' did for the cause, told against the same days a year ago. Every number is from Quorum.']); drift=0.012; }, 10600); } },
-      {k:'Opening', t:'The first '+fyDay+' days of FY27', ms:9000, run(){ cinema(false); world({cols:1, colT:4, abLab:0.7}); EDGE_U.uReveal.value=40; statHide();
+      {k:'Opening', t:'The first '+fyDay+' days of FY27', stage:'map', ms:9000, run(){ cinema(false); world({cols:1, colT:4, abLab:0.7}); EDGE_U.uReveal.value=40; statHide();
           if(cam.r>60) setCam(HOME); flyTo({tx:0.4,ty:2.2,tz:0.6,theta:-0.05,phi:1.04,r:39},8600); drift=0.006;
           caption(['July 1 to October ', {b: asOf.getDate()+', 2026'}, '. What ', {b: fmt(N.tk)+' advocates'}, ' did, told against the same days a year ago. Every number is from Quorum.']); } },
-      {k:'Recruitment', t:'The people on the list', ms:12000, run(){ world({map:0.3, edges:0.6, old:1, net:0, fall:0, actP:0, thread:0, cols:0, cloud:1});
+      {k:'Recruitment', t:'The people on the list', stage:'map', ms:12000, run(){ world({map:0.3, edges:0.6, old:1, net:0, fall:0, actP:0, thread:0, cols:0, cloud:1});
           flyTo({tx:2.4,ty:0,tz:0.8,theta:-0.55,phi:1.1,r:33},10000,3); drift=0.01;
           setText(cloudL,[{b:fmt(noStateC26)}, 'no state on file']);
           caption(['A year ago today, ', {b: fmt(N.c26)+' advocates'}, ' were on the list. Each light is 100 people, shown in their state; the ', fmt(noStateC26), ' with no state on file hover offshore.']);
           later(()=>statShow('On the list, '+monthFull[(asOf.getMonth()+6)%12]+' '+asOf.getDate()+', '+(asOf.getFullYear()-1), N.c26, null, [['#8f87a3','About 100 advocates per light']], 'Where a light sits inside its state is illustrative.'), 500); } },
-      {k:'Recruitment', t:'Who joined since', ms:12000, run(){ world({map:0.3, edges:0.6, old:1, net:1, fall:1, fallMs:5600, actP:0, thread:0, cols:0, cloud:1}); tw('fall',0,0); tw('fall',1,5600,t=>t);
+      {k:'Recruitment', t:'Who joined since', stage:'map', ms:12000, run(){ world({map:0.3, edges:0.6, old:1, net:1, fall:1, fallMs:5600, actP:0, thread:0, cols:0, cloud:1}); tw('fall',0,0); tw('fall',1,5600,t=>t);
           flyTo({tx:2,ty:0.4,tz:0.4,theta:-0.15,phi:1.05,r:31},10000); drift=0.01;
           setText(cloudL,[{b:fmt(noStateC)}, 'no state on file']);
           caption(['Since July 1, ', {b: fmt(new27)+' new advocates'}, ' arrived, against ' + fmt(new26) + ' in the same window last year. The list stands at ', {b: fmt(N.c)}, '.']);
           statShow('On the list today', N.c, ['New since July 1: ', {b: fmt(new27)}, ' (×' + (new27/new26).toFixed(1) + ' last year)'], [['#8f87a3','On the list a year ago'],['#72f0d8','Falling lights: new since July 1'],['#ffffff','Rest of the net growth since a year ago']], 'Net change over the year: +'+fmt(N.c-N.c26)+'.'); } },
-      {k:'Recruitment', t:'Who showed up', ms:13000, run(){ world({map:0.3, edges:0.6, old:1, net:1, fall:1, actP:1, actMs:4200, thread:1, cols:0, cloud:1}); tw('act',0,0); tw('act',1,4200,t=>t);
+      {k:'Recruitment', t:'Who showed up', stage:'map', ms:13000, run(){ world({map:0.3, edges:0.6, old:1, net:1, fall:1, actP:1, actMs:4200, thread:1, cols:0, cloud:1}); tw('act',0,0); tw('act',1,4200,t=>t);
           flyTo({tx:1.2,ty:0.8,tz:1.0,theta:0.4,phi:1.16,r:28},11000,2); drift=0.012;
           caption([{b: fmt(N.tk)+' of them'}, ' took an action for the cause this fiscal year: ' + pct(N.tk/N.c) + ' of everyone on the list, each acting ' + perActor.toFixed(1) + ' times on average.']);
           statShow('Took action in FY27', N.tk, [{b: pct(N.tk/N.c)}, ' of the list'], [['#8f87a3','On the list a year ago'],['#ffffff','Joined or added since'],['#ffa400','Took action in FY27']]); } },
-      {k:'Action', t:'A year ago, by state', ms:11000, run(){ world({old:0.12, net:0.12, thread:0, ghost:1, ghostOnly:true, cols:0, colT:4, abLab:0.8});
+      {k:'Action', t:'A year ago, by state', stage:'map', ms:11000, run(){ world({old:0.12, net:0.12, thread:0, ghost:1, ghostOnly:true, cols:0, colT:4, abLab:0.8});
           flyTo(Object.assign({},COLS,{theta:-0.55,phi:1.05,r:43}),7000); drift=0.008;
           caption(['Now the states. The glass columns are the same window of ', {b:'FY26'}, ': ' + fmt(total26) + ' actions in all, ' + fmt(stSum26) + ' of them tied to a state. The map is geographic, with Alaska and Hawaii inset.']);
           statShow('FY26 · Jul 1 to Oct '+asOf.getDate()+', '+(asOf.getFullYear()-1), total26, ['actions to elected officials'], [legend26]); } },
-      {k:'Action', t:'This year rises', ms:16000, run(){ const my=runId; statHide(); world({ghost:1, cols:1, colT:0, abLab:0.8}); tw('colT',0,0);
+      {k:'Action', t:'This year rises', stage:'map', ms:16000, run(){ const my=runId; statHide(); world({ghost:1, cols:1, colT:0, abLab:0.8}); tw('colT',0,0);
           flyTo(Object.assign({},COLS,{theta:0.08,phi:1.0,r:41,ty:3.6}),14500); drift=0;
           caption(['Watch FY27 grow month by month, ', {b:'July'}, ' first. Each glass ring is where the state stood on the same day last year.']);
           later(()=>{ if(runId!==my) return; tw('colT',4,11000,t=>t); const t0=performance.now(); const names=['July','August','September','October'];
@@ -712,9 +691,9 @@ function boot(){
               else { heroSet(fmt(total27),'by October '+asOf.getDate()+' · ×'+ratio.toFixed(1)+' the same days last year'); caption([{b: fmt(total27)+' actions'}, ' by October '+asOf.getDate()+', against ' + fmt(total26) + ' a year earlier: ×' + ratio.toFixed(1) + '. The more saturated the teal, the bigger the state\'s jump on its own FY26.']);
                 statShow('FY27 against FY26, same days', '×'+ratio.toFixed(1), [fmt(total27)+' vs '+fmt(total26)+' actions'], [legendRamp, legend26]); } };
             requestAnimationFrame(step); }, 900); } },
-      {k:'Action', t:'One month made the year', ms:16000, run(){ const my=runId; statHide(); world({map:0.55, edges:0.6, tl:1, cols:0, ghost:0, abLab:0});
+      {k:'Action', t:'One month made the year', stage:'timeline', ms:16000, run(){ const my=runId; statHide(); world({map:0, edges:0, tl:1, cols:0, ghost:0, abLab:0, embers:0.2});
           panes.forEach(p=>p.th=0); monos.forEach(m=>m.th=0); for(const L of mo26L.concat(mo27L)) L.to=0;
-          setCam(Object.assign({},cam)); flyTo({tx:-6.5,ty:3.2,tz:TLZ+2,theta:-0.62,phi:1.3,r:21,fov:38},4200,4); drift=0;
+          flyTo({tx:-6.5,ty:3.2,tz:TLZ+2,theta:-0.62,phi:1.3,r:21,fov:38},4200); drift=0;
           moL.forEach((L,i)=>{ L.p.set(TLX(i),FLOOR_Y+0.1,TLZ+3.2); L.to=0.9; });
           caption(['Lay the months out in a row. First ', {b:'last year'}, ', July to June, in glass.']);
           let i=0; const t1=()=>{ if(runId!==my) return; panes[i].th=N.full12[i]*TLH; const L=mo26L[i]; setText(L,fmt(N.full12[i])); L.el.className='lbl val'; L.el.style.color='rgba(255,255,255,.55)'; L.p.set(TLX(i),FLOOR_Y+N.full12[i]*TLH+0.35,TLZ-1.6); L.to=0.8; i++; if(i<12) later(t1,230); };
@@ -723,7 +702,7 @@ function boot(){
             let j=0; const t2=()=>{ if(runId!==my) return; monos[j].th=N.a[j]*TLH; mo26L[j].to=0; const L=mo27L[j]; setText(L, (j===3?'Oct 1 to '+asOf.getDate()+': ':'')+fmt(N.a[j])); L.el.className='lbl val'+(j===PK?' gold':''); L.p.set(TLX(j),FLOOR_Y+N.a[j]*TLH+0.45,TLZ+1.1); L.to=1; j++; if(j<4) later(t2,650); else { flyTo({tx:TLX(PK)*0.45,ty:5.2,tz:TLZ+0.5,theta:0.3,phi:1.33,r:31},3600); heroCount(N.a[PK],'actions in '+PKM+(PK===2?' · Ways and Means markup':'')+(beatAll?' · more than any single month of FY26':''),null,1600);
               mo27L[PK].to=0; const bi=N.full12.indexOf(best26); statShow(PKM+' vs the best FY26 month', '×'+(N.a[PK]/best26).toFixed(1), ['Best FY26 month: ' + monthFull[bi] + ', ' + fmt(N.full12[bi]) + ' · FY27: Jul ' + fmt(N.a[0]) + ' · Aug ' + fmt(N.a[1]) + ' · Oct 1 to '+asOf.getDate()+': ' + fmt(N.a[3])], [['#ffc54d',PKM+' FY27'],['#ffffff','FY27 months'],['rgba(201,195,211,.9)','FY26 full months, in glass']], 'FY26 October is the full month; FY27 October is only '+asOf.getDate()+' days so far.'); } };
             t2(); }, 7400); } },
-      {k:'Growth', t:'Almost every state is ahead', ms:18000, run(){ const my=runId; statHide(); world({cols:1, colT:4, ghost:1, abLab:0.55});
+      {k:'Growth', t:'Almost every state is ahead', stage:'map', ms:18000, run(){ const my=runId; statHide(); world({cols:1, colT:4, ghost:1, abLab:0.55});
           flyTo(Object.assign({},COLS,{theta:-0.42,phi:1.02,r:42}),2600); drift=0;
           heroCount(0,'of '+states.length+' ahead of their own start last year',v=>String(Math.round(v)),1);
           const order=ahead.slice().sort((a,b)=>a.lx-b.lx); let w=0; const lit=new Set();
@@ -734,12 +713,12 @@ function boot(){
           const lean=(ab,th)=>{ const s=byAb[ab]; return {tx:s.lx*0.55, tz:s.lz*0.55, ty:2.4, r:31, phi:1.0, theta:th}; };
           later(()=>flyTo(lean(grow[0].ab,-0.75),3800), 8200); later(()=>flyTo(lean(grow[2].ab,0.3),3800), 12400);
           caption([{b: ahead.length+' of '+states.length}, ' (' + juris + ') are ahead of where they stood a year ago. Steepest climbs on a real base: ' + grow.slice(0,4).map(x=>byAb[x.ab].name+' ×'+x.g.toFixed(1)).join(', ') + '.']); } },
-      {k:'Growth', t:'Where the volume sits', ms:15000, run(){ const top3=byAct.slice(0,3); world({cols:1, colT:4, ghost:0.35, hl:top3.map(s=>s.ab), dimOthers:true, spot:top3.map(s=>s.ab), cone:1, abLab:0.5});
+      {k:'Growth', t:'Where the volume sits', stage:'map', ms:15000, run(){ const top3=byAct.slice(0,3); world({cols:1, colT:4, ghost:0.35, hl:top3.map(s=>s.ab), dimOthers:true, spot:top3.map(s=>s.ab), cone:1, abLab:0.5});
           flyTo(Object.assign({},COLS,{theta:0.12,phi:1.0,r:40}),3600); later(()=>flyTo({tx:3,ty:3,tz:0,theta:0.55,phi:1.02,r:37},6000), 4600); drift=0;
           top3.forEach((s,i)=>tag(i,s,[s.name+' ',{b:fmt(cum(s.a,4))}],'',0.2));
           caption([{b: top3.map(s=>s.name).join(', ')}, ' hold ' + pct(top3.reduce((x,s)=>x+cum(s.a,4),0)/stSum,0) + ' of state-attributed actions; the top ten hold ' + pct(byAct.slice(0,10).reduce((x,s)=>x+cum(s.a,4),0)/stSum,0) + '. Read the short columns as capacity, not failure.']);
           statShow('Top three states', top3.reduce((x,s)=>x+cum(s.a,4),0), ['actions · ' + top3.map(s=>s.ab+' '+fmt(cum(s.a,4))).join(' · ')], [['#ffc54d','Top three'],['rgba(201,195,211,.6)','Everyone else']], 'Shares are of the '+fmt(stSum)+' actions tied to a state.'); } },
-      {k:'Engagement', t:'List size is not engagement', ms:17000, run(){ const my=runId; world({cols:1, colT:4, ghost:0, colorMode:'flat', abLab:0.6});
+      {k:'Engagement', t:'List size is not engagement', stage:'map', ms:17000, run(){ const my=runId; world({cols:1, colT:4, ghost:0, colorMode:'flat', abLab:0.6});
           flyTo(Object.assign({},COLS,{theta:-0.5,phi:1.04,r:41}),2600); drift=0;
           caption(['Same states, same camera. Right now height is raw volume.']); statHide();
           later(()=>{ if(runId!==my) return; metric='r'; hl=new Set(byRate.slice(0,3).map(s=>s.ab));
@@ -747,44 +726,42 @@ function boot(){
             caption(['Switch the height to the ', {b:'share of each list that acted'}, ' and the skyline flattens. ' + byRate.slice(0,3).map(s=>s.name+' '+pct(s.tk/s.c)).join(', ') + ' lead; ' + byRate.slice(-3).map(s=>s.ab+' '+pct(s.tk/s.c)).join(', ') + ' trail. Double digits are reachable at very different list sizes.']);
             statShow('Share of list who acted', pct(N.tk/N.c), ['national · best: ', {b: byRate[0].name + ' ' + pct(byRate[0].tk/byRate[0].c)}], [['#ffc54d','Top three by share']], 'Ranking counts states with more than 500 advocates on the list.');
             const s0=byRate[0]; flyTo({tx:s0.lx*0.45, tz:s0.lz*0.45, ty:2.6, r:39, phi:1.0, theta:0.36}, 4200); }, 3400); } },
-      {k:'Channels', t:'The under-used channel', ms:17000, run(){ world({cols:1, colT:4, ghost:1, metric:'t', lanes:zeroText.map(s=>s.ab), abLab:0.6});
+      {k:'Channels', t:'The under-used channel', stage:'map', ms:17000, run(){ world({cols:1, colT:4, ghost:1, metric:'t', lanes:zeroText.map(s=>s.ab), abLab:0.6});
           flyTo(Object.assign({},COLS,{theta:-0.38,phi:0.98,r:40}),6000); drift=0.006;
           caption(['Height is now ', {b:'texts delivered'}, '. Texts were clicked at ' + pct(N.t_clicks/sum(N.t),0) + ' of delivered against ' + pct(N.e_clicks/sum(N.e),1) + ' for email, and produced ' + fmt(N.t_conv) + ' tracked conversions. The pulsing gold states are the ', {b: zeroText.length + ' states'}, ' that sent no state texts this window. Every one is an open lane.']);
           statShow('Texts delivered, FY27', sum(N.t), ['vs ' + fmt(sum(N.t26)) + ' last year · ' + fmt(N.t_conv) + ' conversions'], [['#a36a10','No state texts this window'],['#3cc2ae','Texts up on FY26'],legend26]); } },
     ];
     for(const ab of tour){ if(byAb[ab]) scenes.push(...stateScenes(byAb[ab])); }
-    scenes.push({k:'Pace', t:'Against all of last year', ms:15000, run(){ const my=runId; statHide(); world({cols:0.35, ghost:0, rings:1, map:0.75, abLab:0}); tw('ringFrac',0,0);
-        setCam(Object.assign({},cam)); flyTo({tx:0,ty:RING_Y,tz:0,theta:0.2,phi:1.98,r:21,fov:44},4200,6); drift=0;
+    scenes.push({k:'Pace', t:'Against all of last year', stage:'rings', ms:15000, run(){ const my=runId; statHide(); world({cols:0, ghost:0, rings:1, map:0, edges:0, abLab:0, embers:0.15}); tw('ringFrac',0,0);
+        flyTo({tx:0,ty:RING_Y,tz:0,theta:0.2,phi:1.72,r:17,fov:44},4200); drift=0;
         later(()=>flyTo({tx:0,ty:RING_Y-1.5,tz:0,theta:0.55,phi:0.72,r:30,fov:38},8000),4600);
         const ra=Math.PI/2-(fyPct/100)*Math.PI*2;
-        ringL[0].p.set(0,RING_Y+0.9,-R1-0.2); setText(ringL[0],['Actions · ',{b:pct(paceA,0)},' of all FY26']);
-        ringL[1].p.set(0,RING_Y+0.8,-R2+0.9); setText(ringL[1],['New advocates · ',{b:pct(paceN,0)},' of all FY26']);
+        ringL[0].p.set(-R1-0.4,RING_Y+0.7,0); setText(ringL[0],['Actions · ',{b:pct(paceA,0)},' of all FY26']);
+        ringL[1].p.set(0,RING_Y+0.6,R2+0.2); setText(ringL[1],['New advocates · ',{b:pct(paceN,0)},' of all FY26']);
         ringL[2].p.set(Math.cos(ra)*(R1+1.6),RING_Y+0.5,-Math.sin(ra)*(R1+1.6)); setText(ringL[2],['Today · ',{b:fyPct+'%'},' of the year']);
         ringL.forEach(L=>L.to=1);
         caption(['Two rings. The gold blade is today: ', {b: fyPct+'% of the fiscal year'}, ' has passed. The fill is how much of ', {b:'all of last year'}, ' this year has already matched.']);
         later(()=>{ if(runId!==my) return; tw('ringFrac',1,3200,easeOut); heroCount(paceA*100,'of all of FY26\'s actions already matched, with '+fyPct+'% of the year gone',v=>Math.round(v)+'%',3200);
           statShow('FY27 vs all of FY26', pct(paceA,0), ['of FY26 actions · ', {b: pct(paceN,0)}, ' of FY26 new advocates'], [['#ffffff','Outer ring: actions'],['#3fc2b0','Inner ring: new advocates'],['#ffa400','Gold blade: today, '+fyPct+'% of the year']], pct(N.a[PK]/total27,0)+' of FY27 actions so far came in '+PKM+', so read pace with that spike in mind.'); }, 2600); } });
-    scenes.push({k:'Close', t:'Keep up the momentum', ms:22000, run(){ statHide(); world({cols:1, colT:4, ghost:0.5, embers:1, abLab:0});
+    scenes.push({k:'Close', t:'Keep up the momentum', stage:'map', ms:22000, run(){ statHide(); world({cols:1, colT:4, ghost:0.5, embers:1, abLab:0});
         flyTo({tx:0,ty:2.6,tz:0,theta:-0.5,phi:1.08,r:47,fov:36},4500); drift=0.02; cinema(true); later(()=>finale.classList.add('on'), 1400);
         caption(['×'+ratio.toFixed(1)+' the actions, ×'+(new27/new26).toFixed(1)+' the recruits, '+ahead.length+' of '+states.length+' ahead of last year'+(beatAll?', and one month that outdid any month of FY26':'')+'. Replay, or pick a state to explore.']); } });
   }
 
-  function stateScenes(s, opts){ opts=opts||{}; const m=s.meta; const a=cum(s.a,4), a26=cum(s.a26,4), n=cum(s.n,4), n26=cum(s.n26,4); const rank=byAct.findIndex(x=>x.ab===s.ab)+1; const best=s.a.indexOf(Math.max(...s.a));
-    const sc=Math.max(1, 6.4/Math.max(0.2,s.ext)); const fx=s.lx+s.cx*sc, fz=s.lz+s.cz*sc; const pz=Math.min(s.lz+s.ez1*sc+1.1, fz+2.6);
-    const close={tx:fx,ty:TOP+2.5,tz:(fz+pz)/2,theta:-0.32,phi:1.02,r:14.5,fov:36};
+  function stateScenes(s, opts){ opts=opts||{}; const dm=dio.meta(s.ab); const m={nick:dm.nick||s.meta.nick, known:dm.known||s.meta.known, cap:dm.cap||s.meta.cap};
+    const a=cum(s.a,4), a26=cum(s.a26,4), n=cum(s.n,4), n26=cum(s.n26,4); const rank=byAct.findIndex(x=>x.ab===s.ab)+1; const best=s.a.indexOf(Math.max(...s.a));
     const k=opts.explore?'Explore':'State tour';
-    const arrive={k, t:s.name, st:s.ab, ms:12500, run(){ const my=runId; statHide(); world({cols:1, colT:4, ghost:0, hl:[s.ab], dimOthers:true, abLab:0.4}); let delay=0;
-        if(cameFrom && cameFrom!==s.ab){ flyTo(HOME,3000,4); delay=3000; caption(['Back out to the map, then across to ', {b:s.name}, '.']); }
+    const arrive={k, t:s.name, st:s.ab, stage:'map', ms:13500, run(){ const my=runId; statHide(); world({cols:1, colT:4, ghost:0, hl:[s.ab], dimOthers:true, abLab:0.4}); let delay=0;
+        if(cameFrom && cameFrom!==s.ab && cam.r<30){ flyTo(HOME,2600,4); delay=2600; caption(['Back out to the map, then across to ', {b:s.name}, '.']); }
         else { if(cam.r<18) setCam(HOME); flyTo(HOME,1000); delay=1000; caption(['Next, ', {b:s.name}, '. Find it on the map.']); }
-        later(()=>{ if(runId!==my) return; flyTo({tx:s.lx,ty:1.2,tz:s.lz,theta:-0.3,phi:0.92,r:16},2800); caption(['Diving into ', {b:s.name}, '.']); }, delay);
-        later(()=>{ if(runId!==my) return; stageSet(s); world({cols:0, ghost:0, stageAb:s.ab, stage:0, abLab:0}); flyTo(close,4200,2); drift=0.02;
-          caption([{b:s.name}, (m.nick?', the ' + m.nick:'') + (m.cap?'. Capital: ':''), m.cap?{b:m.cap}:'', '. ' + (m.known||'')]); }, delay+2400);
-        this.ms=delay+12000; } };
-    const numbers={k, t:s.name+' by the numbers', st:s.ab, ms:15000, run(){ statHide(); stageSet(s); world({cols:0, ghost:0, stageAb:s.ab, stage:1, abLab:0});
-        if(Math.abs(cam.tx-close.tx)>2||Math.abs(cam.tz-close.tz)>2) setCam(close); flyTo(Object.assign({},close,{theta:0.14,phi:1.1,r:13.5}),11000); drift=0;
-        later(()=>{ for(let j=0;j<5;j++){ stageL[j].to=1; stageML[j].to=0.9; } }, 900);
+        later(()=>{ if(runId!==my) return; world({cols:0, ghost:0, hl:[s.ab], stageAb:s.ab, abLab:0}); flyTo({tx:s.lx,ty:1.4,tz:s.lz,theta:-0.3,phi:0.9,r:10},2600); caption(['Diving into ', {b:s.name}, '.']); }, delay);
+        later(()=>{ if(runId!==my) return; cut('dio', ()=>{ dio.load(s.ab,true); world({map:0, edges:0, cols:0, ghost:0, dio:1, abLab:0}); setCam(DIO_A0); flyTo(DIO_A1,4800); later(()=>{ if(runId===my) flyTo(Object.assign({},DIO_A1,DIO_A2),5200); },5000); drift=0;
+            caption([{b:s.name}, (m.nick?', the ' + m.nick:'') + (m.cap?'. Capital: ':''), m.cap?{b:m.cap}:'', '. ' + (m.known||'')]); }); }, delay+2500);
+        this.ms=delay+13000; } };
+    const numbers={k, t:s.name+' by the numbers', st:s.ab, stage:'dio', cut:Object.assign({},DIO_A1,DIO_A2), ms:15000, run(){ statHide(); if(dio.ab!==s.ab) dio.load(s.ab,false); world({map:0, edges:0, cols:0, ghost:0, dio:1, abLab:0}); dio.data(true);
+        flyTo(DIO_N,11000); drift=0;
         caption([{b:s.name}, ': ' + fmt(a) + ' actions since July 1 against ' + fmt(a26) + ' in the same window last year' + (a26? ' (×'+(a/a26).toFixed(1)+')':'') + '. ' + monthFull[best] + ' was the big month. ' + fmt(n) + ' new advocates joined (' + fmt(n26) + ' last year) and ' + pct(s.c? s.tk/s.c:0) + ' of the list took action.']);
-        later(()=>statShow(s.name + (m.cap?' · capital ' + m.cap:'') + ' · FY27 to date', a, ['Rank ', {b: rank + ' of ' + states.length}, ' on actions · ' + fmt(s.tk) + ' of ' + fmt(s.c) + ' advocates acted · emails ' + fmt(sum(s.e)) + ' · texts ' + fmt(sum(s.t))], [['#ffffff','FY27 actions by month'],['#ffc54d',PKM+' (the national peak)'],['rgba(201,195,211,.9)','Ring: same month of FY26'],['#3fc2b0','New advocates since July 1 (own scale)']], 'October is October 1 to '+asOf.getDate()+' in both years.'), 700); } };
+        later(()=>statShow(s.name + (m.cap?' · capital ' + m.cap:'') + ' · FY27 to date', a, ['Rank ', {b: rank + ' of ' + states.length}, ' on actions · ' + fmt(s.tk) + ' of ' + fmt(s.c) + ' advocates acted · emails ' + fmt(sum(s.e)) + ' · texts ' + fmt(sum(s.t))], [['#ffffff','FY27 actions by month'],['#ffa400','September'],['rgba(188,190,192,.85)','FY26, same month (grey, behind)'],['#359a8e','New advocates since July 1 (own scale)']], 'October is October 1 to '+asOf.getDate()+' in both years.'), 700); } };
     return [arrive, numbers]; }
 
   // ---------- navigation ----------
@@ -792,18 +769,24 @@ function boot(){
   function renderProgress(){ prog.textContent=''; const L=list(); L.forEach((sc,j)=>{ const sp=document.createElement('span'); if(j>0 && L[j-1].k!==sc.k) sp.classList.add('ch'); prog.appendChild(sp); }); markProgress(); }
   function markProgress(ms){ [...prog.children].forEach((sp,j)=>{ sp.classList.toggle('done',j<idx); sp.classList.toggle('live',j===idx); if(ms!=null) sp.style.setProperty('--ms',ms+'ms'); }); }
   let lastChapter=null;
-  function showAt(i){ const L=list(); clearTimeout(timer); clearTimers(); drift=0; runId++; overlaysOff(); hideLabels(); for(const s of states) s.L.to=0;
+  function showAt(i){ const L=list(); clearTimeout(timer); clearTimers(); drift=0; runId++; overlaysOff(); statHide(); hideLabels(); for(const s of states) s.L.to=0;
     tw('curtainA',0,300); EDGE_U.uReveal.value=Math.max(EDGE_U.uReveal.value, i===0&&!overlay?-30:40);
     idx=clamp(i,0,L.length-1); const sc=L[idx]; if(!sc.st) cameFrom=null;
     const chs=[...new Set(L.map(x=>x.k))].filter(k=>!NOCH.has(k)); const chn=chs.indexOf(sc.k)+1; const chs2=chn? String(chn).padStart(2,'0') : '';
     kick.textContent=(chs2?'Chapter '+chs2+' · ':'')+sc.k+' · '+(idx+1)+' of '+L.length; ttl.textContent=sc.t;
     // chapter card, shown when the story enters a new chapter
-    if(!overlay && chs2 && sc.k!==lastChapter && L[idx-1] && L[idx-1].k!==sc.k){ $('chNum').textContent=chs2; $('chName').textContent=sc.k; chapter.classList.add('on'); tw('fade',0.35,250); later(()=>tw('fade',0,900),260); later(()=>chapter.classList.remove('on'),2300); }
+    const needCut = !!sc.stage && sc.stage!==curStage && !reduceMotion;
+    if(!overlay && chs2 && sc.k!==lastChapter && L[idx-1] && L[idx-1].k!==sc.k){ $('chNum').textContent=chs2; $('chName').textContent=sc.k; chapter.classList.add('on'); if(!needCut){ tw('fade',0.35,250); later(()=>tw('fade',0,900),260); } later(()=>chapter.classList.remove('on'),2300); }
+    else if(!needCut) tw('fade',0,350);
     lastChapter=sc.k;
-    sc.run(); if(sc.st) cameFrom=sc.st;
-    markProgress(sc.ms); prog.classList.toggle('paused',paused);
-    $('prevBtn').disabled= idx===0; $('nextBtn').textContent= idx===L.length-1? (overlay?'Back to story':'Replay'):'Next';
-    if(!paused && !reduceMotion && idx<L.length-1) timer=setTimeout(()=>show(idx+1), sc.ms); }
+    const my=runId;
+    const go=()=>{ sc.run(); if(sc.st) cameFrom=sc.st; markProgress(sc.ms); prog.classList.toggle('paused',paused);
+      clearTimeout(timer); if(!paused && !reduceMotion && idx<L.length-1 && runId===my) timer=setTimeout(()=>show(idx+1), sc.ms); };
+    if(needCut) cut(sc.stage, ()=>{ setCam(sc.cut || STAGE_CAM[sc.stage] || cam); go(); }); else { if(sc.stage) curStage=sc.stage; go(); }
+    $('prevBtn').disabled= idx===0; $('nextBtn').textContent= idx===L.length-1? (overlay?'Back to story':'Replay'):'Next'; }
+  const STAGE_CAM={ map:{tx:0.6,ty:3.2,tz:0.4,theta:-0.36,phi:1.02,r:44,fov:36}, timeline:{tx:-8,ty:3.6,tz:TLZ+2,theta:-0.78,phi:1.28,r:27,fov:38}, rings:{tx:0,ty:RING_Y,tz:0,theta:-0.1,phi:1.62,r:22,fov:44}, dio:DIO_A0 };
+  function cut(stage, fn){ const my=runId; if(reduceMotion || curStage===stage){ curStage=stage; fn(); return; }
+    tw('fade',1,380,t=>t*t); later(()=>{ if(runId!==my) return; curStage=stage; SNAP=true; try{ fn(); } finally{ SNAP=false; } tw('fade',0,850); },400); }
   function show(i){ const L=list(); const cur=L[idx]; cameFrom = cur && cur.st ? cur.st : null; if(i===0 && !overlay) lastChapter=null; showAt(i); }
   $('prevBtn').addEventListener('click',()=>show(idx-1));
   $('nextBtn').addEventListener('click',()=>{ const L=list(); if(idx===L.length-1 && overlay){ $('backBtn').click(); return; } show(idx===L.length-1?0:idx+1); });

@@ -25,9 +25,10 @@ const parts = {
   META: json('meta.json'),
   THREE: txt('vendor/three-r128.min.js'),
   POST: post,
+  STATES: txt('states3d.js'),
   APP: txt('app.js'),
 };
-for (const k of ['THREE', 'POST', 'APP']) if (/<\/script/i.test(parts[k])) throw new Error(k + ' contains </script');
+for (const k of ['THREE', 'POST', 'STATES', 'APP']) if (/<\/script/i.test(parts[k])) throw new Error(k + ' contains </script');
 
 let html = txt('template.html');
 for (const [k, v] of Object.entries(parts)) {

@@ -6,7 +6,7 @@ A 3D, film-style data story of the Alzheimer's Association FY27 digital advocacy
 
 ## What it shows
 
-One continuous 3D world: a geographic map of the 50 states and DC floating over a dark mirror, framed by letterbox bars. Every chapter is staged on, above or beside that map.
+A 3D world framed by letterbox bars: a geographic map of the 50 states and DC floating over a dark mirror, plus separate stages for the month timeline, the pace rings and each state's diorama. Moving between the map and another stage fades to black and back, so one visual never sits on top of another.
 
 | Chapter | Scene | What you see |
 |---|---|---|
@@ -17,13 +17,13 @@ One continuous 3D world: a geographic map of the 50 states and DC floating over 
 | | Who showed up | Everyone who took action ignites gold and sends up a thread of light |
 | 02 Action | A year ago, by state | Glass columns: the same days of FY26 |
 | | This year rises | FY27 columns grow month by month inside the glass; rings mark last year's level |
-| | One month made the year | FY26 months as glass panes, FY27 months as monoliths; September towers over all |
+| | One month made the year | Its own stage: FY26 months as glass panes, FY27 months as monoliths; September towers over all |
 | 03 Growth | Almost every state is ahead | A gold sweep crosses the map lighting every state ahead of last year |
 | | Where the volume sits | Spotlights on the top three states |
 | 04 Engagement | List size is not engagement | The skyline morphs from volume to share of list that acted |
 | 05 Channels | The under-used channel | Height becomes texts delivered; states with no texts pulse gold |
-| (optional) State tour | Any states you pick | The state lifts out of the map with its monthly numbers on a glass plinth |
-| Pace | Against all of last year | A halo of two rings in the sky against a gold "today" blade |
+| (optional) State tour | Any states you pick | The camera dives into the state, then cuts to its diorama from the original edition (landmarks, capital pin, scenery, weather) and its monthly bars |
+| Pace | Against all of last year | Its own stage: two rings against a gold "today" blade |
 | Close | Keep up the momentum | Finale with the three headline numbers |
 
 ## Presenting
@@ -51,6 +51,7 @@ index.html          built, self-contained page (this is what you open or publish
 src/template.html   page skeleton
 src/style.css       letterbox HUD, cards, overlays
 src/app.js          3D engine and the story
+src/states3d.js     state dioramas, ported intact from the original edition (51 landmark specs and builders)
 src/data.json       Quorum export (asOf, national, states)
 src/geo.json        simplified Albers USA state shapes (from us-atlas, U.S. Census boundaries)
 src/meta.json       state nickname, capital and description copy
