@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>FY27 Advocacy Journey</title>
+<meta name="description" content="A cinematic 3D data story of the Alzheimer's Association FY27 digital advocacy results so far.">
+<style>
+/*@@FONTS@@*/
+/*@@CSS@@*/
+</style>
+</head>
+<body class="cinema">
+
+<canvas id="c" aria-label="Cinematic 3D story of FY27 grassroots advocacy"></canvas>
+<div id="labels" aria-hidden="true"></div>
+
+<div class="bar t" aria-hidden="true"></div>
+<div class="bar b" aria-hidden="true"></div>
+
+<section class="ovl" id="cold" aria-live="polite"><div class="inner"><div class="t1">Our FY27 Digital Advocacy Journey So Far</div><div class="bignum" id="coldNum">0</div><div class="biglab" id="coldLab">actions for the cause since July 1</div><div class="bigline" id="coldLine"></div></div></section>
+<section class="ovl" id="chapter" aria-hidden="true"><div class="inner"><div class="num" id="chNum"></div><div class="name" id="chName"></div><div class="rule"></div></div></section>
+<section id="hero" aria-live="polite"><div class="n" id="heroNum"></div><div class="l" id="heroLab"></div></section>
+<section class="ovl" id="finale"><div class="inner"><p class="eyebrow">Our FY27 Digital Advocacy Journey So Far</p><h1>Keep up the momentum</h1><div class="row" id="finRow"></div><p class="cta" id="finCta"></p></div></section>
+
+<header id="top">
+  <div class="brand"><span class="mark" aria-hidden="true"></span><div class="txt"><p class="eyebrow">Our FY27 Digital Advocacy Journey So Far</p><p id="kicker"></p><h2 id="sceneTitle"></h2></div></div>
+  <div id="pick">
+    <label for="stateSel" class="sr">Explore a state</label>
+    <select id="stateSel"><option value="">Explore a state…</option></select>
+    <button type="button" id="tourBtn" class="ghost">Build tour</button>
+    <button type="button" id="backBtn">Back to story</button>
+    <button type="button" id="fsBtn" class="ghost icon" aria-label="Full screen" title="Full screen (F)"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M1 5V1h4M11 1h4v4M15 11v4h-4M5 15H1v-4" fill="none" stroke="currentColor" stroke-width="2"/></svg></button>
+  </div>
+</header>
+
+<section id="tourPanel" aria-label="Build a state tour">
+  <h3>Build a state tour</h3>
+  <p>Tick states in the order you want them. Each one gets a fly-in chapter and a numbers chapter, placed after the Channels chapter and before Pace.</p>
+  <div id="tourGrid"></div>
+  <p id="tourOrder"></p>
+  <div id="tourRow"><input id="tourCode" type="text" spellcheck="false" aria-label="Tour code" placeholder="Tour code, e.g. NJ,TX,CA"><button type="button" id="tourApply">Apply</button><button type="button" id="tourCopy" class="ghost">Copy link</button><button type="button" id="tourClear" class="ghost">Clear</button><button type="button" id="tourClose" class="ghost">Close</button></div>
+  <div id="tourMsg"></div>
+</section>
+
+<section id="stat" aria-live="polite">
+  <div id="statLbl"></div>
+  <div id="statBig"></div>
+  <div id="statSub"></div>
+  <div class="lg" id="statLg"></div>
+</section>
+
+<footer id="bottom">
+  <p id="caption" aria-live="polite"></p>
+  <div id="ctl">
+    <div id="progress" aria-hidden="true"></div>
+    <div id="btns"><span id="hint">← → to move · space to pause · F full screen</span><button type="button" id="prevBtn" class="ghost">Back</button><button type="button" id="pauseBtn" class="ghost">Pause</button><button type="button" id="nextBtn">Next</button></div>
+  </div>
+</footer>
+
+<section id="fallback" aria-live="polite"><div class="wrap"><h2>This browser could not start the 3D story</h2><p>Here are the headline numbers instead. Try a current version of Chrome, Edge, Safari or Firefox with hardware acceleration turned on to see the full experience.</p><div class="grid" id="fbGrid"></div></div></section>
+
+<script type="application/json" id="data">/*@@DATA@@*/</script>
+<script type="application/json" id="geo">/*@@GEO@@*/</script>
+<script type="application/json" id="meta">/*@@META@@*/</script>
+<script>/*@@THREE@@*/</script>
+<script>/*@@POST@@*/</script>
+<script>/*@@APP@@*/</script>
+</body>
+</html>
