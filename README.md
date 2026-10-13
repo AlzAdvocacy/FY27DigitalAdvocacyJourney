@@ -22,7 +22,7 @@ A 3D world framed by letterbox bars: a geographic map of the 50 states and DC fl
 | | Where the volume sits | Spotlights on the top three states |
 | 04 Engagement | List size is not engagement | The skyline morphs from volume to share of list that acted |
 | 05 Channels | The under-used channel | Height becomes texts delivered; states with no texts pulse gold |
-| (optional) State tour | Any states you pick | The camera dives into the state, then cuts to its diorama: the original edition's landmarks, capital pin and scenery, restaged on a dark glass plateau and reflective pedestal, graded into a cinematic palette, lit by one of six themes (forest, farm, desert, mountain, city, coast), with a title card and the monthly numbers as light pillars |
+| (optional) State tour | Any states you pick | The camera dives into the state, then cuts to its diorama: the original edition's landmarks, capital pin and scenery, restaged on a dark glass plateau and reflective pedestal, graded into a cinematic palette, lit by one of six themes (forest, farm, desert, mountain, city, coast), with real facades and lit windows on the towers, surface grain on every landmark, a night ground of fields, streets, ridges or dunes with lit towns and highways, rising city blocks, a close glide to the signature landmark, a title card and the monthly numbers as light pillars |
 | Pace | Against all of last year | Its own stage: two rings against a gold "today" blade |
 | Close | Keep up the momentum | Finale with the three headline numbers |
 
