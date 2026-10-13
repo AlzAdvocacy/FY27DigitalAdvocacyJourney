@@ -444,10 +444,19 @@ function boot(){
   // ---------- state dioramas (ported from the original edition), staged on their own at the origin ----------
   const dio=makeStateStage({scene, byAb, fmt, cum, monthShort, reduceMotion}); dio.group.visible=false;
   renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
-  const dHemi=new THREE.HemisphereLight(lin(0xffffff), lin(0x4a0d66), 0); scene.add(dHemi);
-  const dSun=new THREE.DirectionalLight(lin(0xfff6ee),0); dSun.position.set(8,18,6); dSun.castShadow=true; dSun.shadow.mapSize.set(2048,2048); Object.assign(dSun.shadow.camera,{left:-9,right:9,top:9,bottom:-9,near:1,far:60}); dSun.shadow.bias=-0.0008; dSun.shadow.radius=4; scene.add(dSun);
-  const dBack=new THREE.DirectionalLight(lin(0xa486b3),0); dBack.position.set(-10,8,-8); scene.add(dBack);
-  const DIO_A0={tx:0.4,ty:1.0,tz:0.9,theta:-0.8,phi:0.98,r:20,fov:36}, DIO_A1={tx:0.5,ty:0.8,tz:0.8,theta:-0.3,phi:0.86,r:14.5,fov:36}, DIO_A2={theta:0.35,r:14}, DIO_N={tx:0.8,ty:0.6,tz:2.0,theta:0.12,phi:0.8,r:18.5,fov:36};
+  const dHemi=new THREE.HemisphereLight(lin(0xd9ccff), lin(0x1a0826), 0); scene.add(dHemi);
+  const dSun=new THREE.DirectionalLight(lin(0xffe2c4),0); dSun.position.set(7,10,6); dSun.castShadow=true; dSun.shadow.mapSize.set(2048,2048); Object.assign(dSun.shadow.camera,{left:-9,right:9,top:9,bottom:-9,near:1,far:60}); dSun.shadow.bias=-0.0008; dSun.shadow.radius=4; scene.add(dSun);
+  const dBack=new THREE.DirectionalLight(lin(0x9b74e0),0); dBack.position.set(-9,6,-10); scene.add(dBack);
+  dio.rim(lin(0x8d6ad1).multiplyScalar(0.38));
+  const dPoint=new THREE.PointLight(0xffffff,0,16,1.5); dPoint.position.set(3,5,3); scene.add(dPoint); // tinted per biome, always present
+  // a dark reflective pedestal under the diorama and its numbers, edged in light, with a soft beam from above
+  const pedestal=new THREE.Group(); scene.add(pedestal); pedestal.visible=false;
+  { const top=new THREE.Mesh(new THREE.CylinderGeometry(6.7,6.95,0.34,128), new THREE.MeshStandardMaterial({color:lin(0x0f0818), roughness:0.55, metalness:0.3}));
+    top.position.y=-0.18; top.receiveShadow=true; pedestal.add(top);
+    const edge=new THREE.Mesh(new THREE.TorusGeometry(6.71,0.022,8,256), new THREE.MeshBasicMaterial(Object.assign({color:lin(0xb79ad0).multiplyScalar(1.2),fog:false},ADD))); edge.rotation.x=Math.PI/2; edge.position.y=-0.005; pedestal.add(edge);
+    const lip=new THREE.Mesh(new THREE.TorusGeometry(6.96,0.014,8,256), new THREE.MeshBasicMaterial(Object.assign({color:lin(0xffc54d).multiplyScalar(0.55),fog:false},ADD))); lip.rotation.x=Math.PI/2; lip.position.y=-0.35; pedestal.add(lip);
+    const bg=new THREE.CylinderGeometry(0.9,6.4,16,64,1,true); bg.translate(0,8,0); const beam=new THREE.Mesh(bg,coneMat()); beam.material.uniforms.uA.value=0; pedestal.add(beam); pedestal.userData.beam=beam; }
+  const DIO_A0={tx:0.2,ty:2.3,tz:0.5,theta:-1.05,phi:1.4,r:14.5,fov:34}, DIO_A1={tx:0.3,ty:1.75,tz:0.6,theta:-0.32,phi:1.08,r:12,fov:36}, DIO_A2={theta:0.42,phi:1.02,r:11.5}, DIO_N={tx:0.7,ty:1.1,tz:2.5,theta:0.08,phi:1.02,r:15.5,fov:36};
 
   // ---------- projected HTML labels ----------
   const LBL=[]; const layer=$('labels'); const _v=new THREE.Vector3();
@@ -460,6 +469,34 @@ function boot(){
   const mo26L=[0,1,2,3,4,5,6,7,8,9,10,11].map(()=>mkLabel('val'));
   const ringL=[mkLabel('ring'),mkLabel('ring'),mkLabel('ring')];
   const cloudL=mkLabel('cloud');
+  // ---------- diorama numbers: the same light pillars, glass and rings as the map ----------
+  const DIO_P=[0,1,2,3].map(i=>[(i-1.5)*1.3,4.6]).concat([[4.45,1.55]]);
+  const dioCol=instanced(cylGeo(), pillarMat(PILLAR_F), 5); scene.add(dioCol);
+  const dsGeo=new THREE.CylinderGeometry(1,1,1,28,1,true); dsGeo.translate(0,0.5,0);
+  const dioSleeve=instanced(dsGeo, pillarMat(GHOST_F,{mat:Object.assign({side:THREE.DoubleSide},ADD)}), 5); scene.add(dioSleeve);
+  const dioRing=instanced(ringGeo.clone(), pillarMat(EMIT_F,{mat:ADD}), 5); scene.add(dioRing);
+  const dioPool=instanced(poolGeo.clone(), poolMesh.material, 5); scene.add(dioPool);
+  const DD={h:[0,0,0,0,0], th:[0,0,0,0,0], g:[0,0,0,0,0], tg:[0,0,0,0,0], on:false};
+  const dioVal=[0,1,2,3,4].map(()=>mkLabel('val')), dioMo=[0,1,2,3,4].map(()=>{ const L=mkLabel('mo'); L.ay=0; return L; }), dioRow=mkLabel('mo'), dioCap=mkLabel('tag');
+  dioRow.ay=0; const DIO_LBL=dioVal.concat(dioMo,[dioRow]);
+  function setA(m,j,c,g,h){ m.geometry.attributes.aColor.setXYZ(j,c.r,c.g,c.b); m.geometry.attributes.aGlow.setX(j,g); m.geometry.attributes.aH.setX(j,h); }
+  function dioSet(s){ const a=s.a, a26=s.a26, n27=sum(s.n), n26=sum(s.n26); const kA=2.9/Math.max(1,...a,...a26), kN=2.9/Math.max(1,n27,n26);
+    DD.th=a.map(v=>Math.max(0.05,v*kA)).concat([Math.max(0.05,n27*kN)]); DD.tg=a26.map(v=>v*kA).concat([n26*kN]);
+    const ml=['Jul','Aug','Sep','Oct 1 to '+asOf.getDate(),'New advocates'];
+    for(let j=0;j<5;j++){ setText(dioVal[j], fmt(j<4?a[j]:n27)); dioVal[j].el.className='lbl val'+(j===PK?' gold':''); dioMo[j].el.textContent=ml[j]; }
+    dioRow.el.textContent='FY27 actions by month · glass and ring: same month of FY26'; dioRow.p.set(0,-0.05,6.3);
+    const cp=dio.capital(); if(cp) setText(dioCap,['Capital · ',{b:cp.name}]); }
+  function dioDataTick(kf, dv){ const vis=dv>0.01; dioCol.visible=dioSleeve.visible=dioRing.visible=dioPool.visible=vis;
+    if(!vis) return;
+    for(let j=0;j<5;j++){ DD.h[j]+=((DD.on?DD.th[j]:0)-DD.h[j])*kf*0.55; DD.g[j]+=((DD.on?DD.tg[j]:0)-DD.g[j])*kf*0.55;
+      const [x,z]=DIO_P[j], c=j===4?TEAL:(j===PK?GOLD2:WHITE), r=j===4?0.3:0.27, h=Math.max(0.001,DD.h[j]), g=Math.max(0.001,DD.g[j]), on=DD.g[j]>0.04?1:0;
+      _o.rotation.set(0,0,0); _o.position.set(x,0,z); _o.scale.set(r,h,r); _o.updateMatrix(); dioCol.setMatrixAt(j,_o.matrix); setA(dioCol,j,c,dv*(j===PK?0.6:(j===4?0.58:0.34))*Math.min(1,DD.h[j]*8),h);
+      _o.scale.set(r*1.6,g,r*1.6); _o.updateMatrix(); dioSleeve.setMatrixAt(j,_o.matrix); setA(dioSleeve,j,SILVER,dv*1.5*on,g);
+      _o.position.y=g; _o.scale.setScalar(r*1.75); _o.updateMatrix(); dioRing.setMatrixAt(j,_o.matrix); setA(dioRing,j,SILVER,dv*0.8*on,1);
+      _o.position.y=0.012; _o.scale.set(2.4,1,2.4); _o.updateMatrix(); dioPool.setMatrixAt(j,_o.matrix); setA(dioPool,j,c,dv*Math.min(1,DD.h[j]*0.6)*0.45,1);
+      dioVal[j].p.set(x,h+0.32,z); dioMo[j].p.set(x,-0.05,z+0.72); }
+    for(const m of [dioCol,dioSleeve,dioRing,dioPool]){ m.instanceMatrix.needsUpdate=true; for(const a of ['aColor','aGlow','aH']) m.geometry.attributes[a].needsUpdate=true; }
+    const cp=dio.capital(); if(cp) dioCap.p.set(cp.x,cp.y+0.45,cp.z); }
   let labW=1,labH=1;
   function labelsTick(dt){ const k=1-Math.exp(-dt*7);
     for(const L of LBL){ L.o+=(L.to-L.o)*k; if(L.o<0.01 && L.to===0){ if(L.shown){ L.el.style.display='none'; L.shown=false; } continue; }
@@ -570,8 +607,9 @@ function boot(){
       const a=Math.PI/2-paceA*V.ringFrac*Math.PI*2; ringFlare.position.set(Math.cos(a)*R1,0,-Math.sin(a)*R1); ringFlare.material.opacity=V.rings*Math.min(1,V.ringFrac*4)*0.1;
       ringsG.rotation.y=reduceMotion?0:Math.sin(now*0.00008)*0.08; }
     // the map rig and the diorama rig hand over so each stage is lit for itself
-    const dv=V.dio; hemi.intensity=0.75*(1-dv); key.intensity=1.25*(1-dv); rim.intensity=0.9*(1-dv); dHemi.intensity=0.42*dv; dSun.intensity=0.62*dv; dBack.intensity=0.22*dv;
-    dio.group.visible=dv>0.01; if(dio.group.visible) dio.tick(now, Math.min(1,dv*1.25));
+    const dv=V.dio; hemi.intensity=0.75*(1-dv); key.intensity=1.25*(1-dv); rim.intensity=0.9*(1-dv); dHemi.intensity=0.26*dv; dSun.intensity=0.95*dv; dBack.intensity=0.85*dv; { const b=dio.biome(); dPoint.color.copy(b.color); dPoint.intensity=b.intensity*dv; }
+    dio.group.visible=pedestal.visible=dv>0.01; if(dio.group.visible) dio.tick(now, Math.min(1,dv*1.25));
+    pedestal.userData.beam.material.uniforms.uA.value=0.55*dv*(0.9+0.1*Math.sin(now*0.0013)); dioDataTick(kf,dv);
     // atmosphere
     sky.material.uniforms.uLift.value=V.skyLift; stars.material.uniforms.uA.value=0.5+0.5*V.skyLift;
     finalPass.uniforms.uFlash.value=V.flash; finalPass.uniforms.uFade.value=V.fade;
@@ -627,7 +665,9 @@ function boot(){
   function heroHide(){ hero.classList.remove('on'); cancelAnimationFrame(heroRaf); }
   const cold=$('cold'), coldNum=$('coldNum'), coldLine=$('coldLine'), finale=$('finale'), chapter=$('chapter');
   function cinema(on){ document.body.classList.toggle('cinema',!!on); }
-  function overlaysOff(){ cold.classList.remove('on'); coldLine.classList.remove('on'); finale.classList.remove('on'); chapter.classList.remove('on'); cinema(false); heroHide(); }
+  const stTitle=$('stTitle');
+  function stateTitle(name, sub){ $('stName').textContent=name; $('stSub').textContent=sub; stTitle.classList.remove('on'); void stTitle.offsetWidth; stTitle.classList.add('on'); later(()=>stTitle.classList.remove('on'),4200); }
+  function overlaysOff(){ stTitle.classList.remove('on'); cold.classList.remove('on'); coldLine.classList.remove('on'); finale.classList.remove('on'); chapter.classList.remove('on'); cinema(false); heroHide(); }
   function tag(i, s, parts, cls, dy){ const L=tags[i]; setText(L,parts); L.el.className='lbl tag'+(cls?' '+cls:''); L.st=s; L.dy=dy||0; L.to=1; return L; }
   function tagsTick(){ for(const L of tags){ const s=L.st; if(!s) continue; L.p.set(s.lx, TOP+s.M.lift+Math.max(s.C.h*V.cols,s.C.g*V.ghost)+0.75+L.dy, s.lz); } }
 
@@ -755,13 +795,14 @@ function boot(){
         if(cameFrom && cameFrom!==s.ab && cam.r<30){ flyTo(HOME,2600,4); delay=2600; caption(['Back out to the map, then across to ', {b:s.name}, '.']); }
         else { if(cam.r<18) setCam(HOME); flyTo(HOME,1000); delay=1000; caption(['Next, ', {b:s.name}, '. Find it on the map.']); }
         later(()=>{ if(runId!==my) return; world({cols:0, ghost:0, hl:[s.ab], stageAb:s.ab, abLab:0}); flyTo({tx:s.lx,ty:1.4,tz:s.lz,theta:-0.3,phi:0.9,r:10},2600); caption(['Diving into ', {b:s.name}, '.']); }, delay);
-        later(()=>{ if(runId!==my) return; cut('dio', ()=>{ dio.load(s.ab,true); world({map:0, edges:0, cols:0, ghost:0, dio:1, abLab:0}); setCam(DIO_A0); flyTo(DIO_A1,4800); later(()=>{ if(runId===my) flyTo(Object.assign({},DIO_A1,DIO_A2),5200); },5000); drift=0;
+        later(()=>{ if(runId!==my) return; cut('dio', ()=>{ dio.load(s.ab,true); dioSet(s); DD.on=false; DD.h.fill(0); DD.g.fill(0); world({map:0, edges:0, cols:0, ghost:0, dio:1, abLab:0, embers:0.3}); setCam(DIO_A0); flyTo(DIO_A1,5600); later(()=>{ if(runId===my) flyTo(Object.assign({},DIO_A1,DIO_A2),6200); },5600); drift=0;
+            stateTitle(s.name, [m.nick?'The '+m.nick:'', m.cap?'Capital '+m.cap:''].filter(Boolean).join(' · ')); later(()=>{ if(runId===my && dio.capital()) dioCap.to=1; },2900);
             caption([{b:s.name}, (m.nick?', the ' + m.nick:'') + (m.cap?'. Capital: ':''), m.cap?{b:m.cap}:'', '. ' + (m.known||'')]); }); }, delay+2500);
         this.ms=delay+13000; } };
-    const numbers={k, t:s.name+' by the numbers', st:s.ab, stage:'dio', cut:Object.assign({},DIO_A1,DIO_A2), ms:15000, run(){ statHide(); if(dio.ab!==s.ab) dio.load(s.ab,false); world({map:0, edges:0, cols:0, ghost:0, dio:1, abLab:0}); dio.data(true);
-        flyTo(DIO_N,11000); drift=0;
+    const numbers={k, t:s.name+' by the numbers', st:s.ab, stage:'dio', cut:Object.assign({},DIO_A1,DIO_A2), ms:15000, run(){ const my=runId; statHide(); if(dio.ab!==s.ab) dio.load(s.ab,false); dioSet(s); world({map:0, edges:0, cols:0, ghost:0, dio:1, abLab:0, embers:0.3}); DD.on=true;
+        flyTo(DIO_N,9000); drift=0; if(dio.capital()) dioCap.to=1; later(()=>{ if(runId!==my) return; for(const L of DIO_LBL) L.to=1; },1400);
         caption([{b:s.name}, ': ' + fmt(a) + ' actions since July 1 against ' + fmt(a26) + ' in the same window last year' + (a26? ' (×'+(a/a26).toFixed(1)+')':'') + '. ' + monthFull[best] + ' was the big month. ' + fmt(n) + ' new advocates joined (' + fmt(n26) + ' last year) and ' + pct(s.c? s.tk/s.c:0) + ' of the list took action.']);
-        later(()=>statShow(s.name + (m.cap?' · capital ' + m.cap:'') + ' · FY27 to date', a, ['Rank ', {b: rank + ' of ' + states.length}, ' on actions · ' + fmt(s.tk) + ' of ' + fmt(s.c) + ' advocates acted · emails ' + fmt(sum(s.e)) + ' · texts ' + fmt(sum(s.t))], [['#ffffff','FY27 actions by month'],['#ffa400','September'],['rgba(188,190,192,.85)','FY26, same month (grey, behind)'],['#359a8e','New advocates since July 1 (own scale)']], 'October is October 1 to '+asOf.getDate()+' in both years.'), 700); } };
+        later(()=>statShow(s.name + (m.cap?' · capital ' + m.cap:'') + ' · FY27 to date', a, ['Rank ', {b: rank + ' of ' + states.length}, ' on actions · ' + fmt(s.tk) + ' of ' + fmt(s.c) + ' advocates acted · emails ' + fmt(sum(s.e)) + ' · texts ' + fmt(sum(s.t))], [['#ffffff','FY27 actions by month'],['#ffc54d',PKM],['rgba(201,195,211,.9)','Glass and ring: same month of FY26'],['#3fc2b0','New advocates since July 1 (own scale)']], 'October is October 1 to '+asOf.getDate()+' in both years.'), 700); } };
     return [arrive, numbers]; }
 
   // ---------- navigation ----------

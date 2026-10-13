@@ -22,7 +22,7 @@ A 3D world framed by letterbox bars: a geographic map of the 50 states and DC fl
 | | Where the volume sits | Spotlights on the top three states |
 | 04 Engagement | List size is not engagement | The skyline morphs from volume to share of list that acted |
 | 05 Channels | The under-used channel | Height becomes texts delivered; states with no texts pulse gold |
-| (optional) State tour | Any states you pick | The camera dives into the state, then cuts to its diorama from the original edition (landmarks, capital pin, scenery, weather) and its monthly bars |
+| (optional) State tour | Any states you pick | The camera dives into the state, then cuts to its diorama: the original edition's landmarks, capital pin and scenery, restaged on a dark glass plateau and reflective pedestal with cinematic lighting, a title card, and the monthly numbers as light pillars |
 | Pace | Against all of last year | Its own stage: two rings against a gold "today" blade |
 | Close | Keep up the momentum | Finale with the three headline numbers |
 
@@ -51,7 +51,7 @@ index.html          built, self-contained page (this is what you open or publish
 src/template.html   page skeleton
 src/style.css       letterbox HUD, cards, overlays
 src/app.js          3D engine and the story
-src/states3d.js     state dioramas, ported intact from the original edition (51 landmark specs and builders)
+src/states3d.js     state dioramas: the original edition's 51 landmark specs and builders, ported intact, plus a cinematic restyle pass
 src/data.json       Quorum export (asOf, national, states)
 src/geo.json        simplified Albers USA state shapes (from us-atlas, U.S. Census boundaries)
 src/meta.json       state nickname, capital and description copy

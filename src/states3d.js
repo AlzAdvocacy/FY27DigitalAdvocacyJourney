@@ -2,13 +2,15 @@
    cinematic edition): a plateau in each state's outline, its landmarks, capital pin, biome scatter,
    weather, birds and the monthly bars. The cinematic engine only places, lights and colour-manages it.
    Everything between the PORTED markers is the original code; edits there are limited to placement
-   (the diorama now sits at the world origin) and the fade hook. */
+   (the diorama now sits at the world origin), the fade hook, and hiding the canvas text sprites
+   (the engine draws that text as HTML). restyle() below then dresses the stage in the cinematic look
+   without touching the landmark builders. */
 function makeStateStage(env){
   'use strict';
   const {scene, byAb, fmt, cum, monthShort, reduceMotion} = env;
   let stageAlpha = 1;
   // ---- PORTED: helpers the diorama code relied on ----
-  function label(text, size, color){ const cv=document.createElement('canvas'); const ctx=cv.getContext('2d'); ctx.font='700 56px "Houschka Alt Pro", Arial, Helvetica, sans-serif'; const w=Math.max(256, Math.ceil(ctx.measureText(text).width)+48); cv.width=w; cv.height=96; const c2=cv.getContext('2d'); c2.font='700 56px "Houschka Alt Pro", Arial, Helvetica, sans-serif'; c2.textAlign='center'; c2.textBaseline='middle'; c2.fillStyle=color||'#ffffff'; c2.shadowColor='rgba(0,0,0,.6)'; c2.shadowBlur=8; c2.fillText(text,w/2,50); const tex=new THREE.CanvasTexture(cv); tex.minFilter=THREE.LinearFilter; tex.encoding=THREE.sRGBEncoding; const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthTest:false,color:new THREE.Color(0.82,0.82,0.82),fog:false})); sp.scale.set((size||1)*2.2*(w/256),(size||1)*0.82,1); sp.renderOrder=3; return sp; }
+  function label(text, size, color){ const cv=document.createElement('canvas'); const ctx=cv.getContext('2d'); ctx.font='700 56px "Houschka Alt Pro", Arial, Helvetica, sans-serif'; const w=Math.max(256, Math.ceil(ctx.measureText(text).width)+48); cv.width=w; cv.height=96; const c2=cv.getContext('2d'); c2.font='700 56px "Houschka Alt Pro", Arial, Helvetica, sans-serif'; c2.textAlign='center'; c2.textBaseline='middle'; c2.fillStyle=color||'#ffffff'; c2.shadowColor='rgba(0,0,0,.6)'; c2.shadowBlur=8; c2.fillText(text,w/2,50); const tex=new THREE.CanvasTexture(cv); tex.minFilter=THREE.LinearFilter; tex.encoding=THREE.sRGBEncoding; const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthTest:false,color:new THREE.Color(0.82,0.82,0.82),fog:false})); sp.scale.set((size||1)*2.2*(w/256),(size||1)*0.82,1); sp.renderOrder=3; sp.visible=false; sp.userData.lbl=true; return sp; } // the cinematic edition sets this text as HTML instead
   function setGroupOpacity(group, o){ group.traverse(obj=>{ if(obj.material){ const mats=Array.isArray(obj.material)?obj.material:[obj.material]; for(const m of mats){ if(m.userData.baseOpacity==null && o>=0.999) continue; m.transparent=true; m.opacity=o*(m.userData.baseOpacity==null?1:m.userData.baseOpacity); } } }); }
   const dotTex=(function(){ const cv=document.createElement('canvas'); cv.width=64; cv.height=64; const ctx=cv.getContext('2d'); const g=ctx.createRadialGradient(32,32,0,32,32,30); g.addColorStop(0,'rgba(255,255,255,1)'); g.addColorStop(0.7,'rgba(255,255,255,1)'); g.addColorStop(1,'rgba(255,255,255,0)'); ctx.fillStyle=g; ctx.fillRect(0,0,64,64); const t=new THREE.CanvasTexture(cv); return t; })();
   const boxGeo=new THREE.BoxGeometry(1,1,1); boxGeo.translate(0,0.5,0);
@@ -347,9 +349,33 @@ WY:{nick:'Equality State', known:'Devils Tower, the Tetons, Old Faithful, bison 
       if(m.color && !m.isSpriteMaterial) m.color.convertSRGBToLinear(); if(m.emissive) m.emissive.convertSRGBToLinear();
       for(const k of ['map','emissiveMap']) if(m[k] && m[k].encoding!==THREE.sRGBEncoding){ m[k].encoding=THREE.sRGBEncoding; m[k].needsUpdate=true; }
       m.needsUpdate=true; } }); }
+  // ---- cinematic restyle: dark glass plateau with glowing edges, rim-lit landmarks, quieter water, no cartoon clouds ----
+  const RIM={value:new THREE.Color(0,0,0)};
+  function rimHook(sh){ sh.uniforms.uRim=RIM; sh.fragmentShader=sh.fragmentShader.replace('void main() {','uniform vec3 uRim;\nvoid main() {').replace('#include <emissivemap_fragment>','#include <emissivemap_fragment>\n\t{ float rf=1.0-clamp(dot(normal,normalize(vViewPosition)),0.0,1.0); totalEmissiveRadiance+=uRim*pow(rf,2.6); }'); }
+  const L=h=>new THREE.Color(h).convertSRGBToLinear();
+  let styled=null; const BIOLIGHT={color:new THREE.Color(1,1,1), intensity:0};
+  function restyle(){ if(styled===stageAb) return; styled=stageAb;
+    for(const g of stageParts){
+      if(g.userData.axis==='y'){ g.traverse(o=>{
+          if(o.isMesh){ const m=new THREE.MeshStandardMaterial({color:L(0x34204a), roughness:0.62, metalness:0.22, emissive:L(0x0b0412)}); m.onBeforeCompile=rimHook; m.userData.rim=true; done.add(m); o.material=m; o.castShadow=true; o.receiveShadow=true; }
+          else if(o.isLineSegments){ const m=new THREE.LineBasicMaterial({color:L(0xb79ad0).multiplyScalar(1.5), transparent:true, opacity:0.95, blending:THREE.AdditiveBlending, depthWrite:false, fog:false}); m.userData.baseOpacity=0.95; done.add(m); o.material=m; } }); }
+      else if(g.isMesh && g.geometry.type==='CircleGeometry' && g.userData.fadeTo===0.12){ g.material.color.copy(L(0x0e2c33)); g.userData.fadeTo=0.55; }
+      else if(g.isMesh && g.geometry.type==='PlaneGeometry' && g.userData.fade){ g.scale.set(1.25,1.25,1.25); }
+    }
+    // hand the biome light to the engine: a light that comes and goes would recompile every material on each cut
+    if(stageLight){ BIOLIGHT.color.copy(stageLight.color); BIOLIGHT.intensity=stageLight.intensity; stage.remove(stageLight); stageLight=null; }
+    for(const c of clouds) c.visible=false;
+    for(const r of ripples){ r.o.material.color.copy(r.sea? L(0x3fc2b0).multiplyScalar(0.45) : L(0xffc54d).multiplyScalar(0.7)); r.o.material.blending=THREE.AdditiveBlending; }
+    if(particles){ const m=particles.material; m.blending=THREE.AdditiveBlending; m.color.multiplyScalar(0.9); m.needsUpdate=true; }
+    for(const d of dataBars) if(d.m) d.m.visible=false; // replaced by the engine's light pillars
+    stage.traverse(o=>{ const ms=o.material?(Array.isArray(o.material)?o.material:[o.material]):[]; for(const m of ms){ if(m.isMeshStandardMaterial && !m.userData.rim){ m.userData.rim=true; m.onBeforeCompile=rimHook; m.needsUpdate=true; } } });
+  }
   return {
     group: stage,
-    load(ab, fresh){ if(fresh) stageAb=null; stageLoad(ab, !fresh); linearize(stage); },
+    load(ab, fresh){ if(fresh) stageAb=null; stageLoad(ab, !fresh); linearize(stage); restyle(); },
+    rim(c){ RIM.value.copy(c); },
+    biome(){ return BIOLIGHT; },
+    capital(){ const o=OUT[stageAb]; return o&&o.cap? {name:o.cap[0], x:o.cap[1]*PS, y:TOP+1.1, z:o.cap[2]*PS} : null; },
     tick(now, alpha){ stageAlpha=alpha; if(!stage.visible) return; setGroupOpacity(stage, alpha); stageTick(now); linearize(stage); },
     data(on){ dataOn=!!on; },
     get ab(){ return stageAb; },
